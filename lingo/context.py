@@ -1,7 +1,7 @@
 import asyncio
 import contextlib
 from pydantic import BaseModel, create_model
-from typing import Any, Callable
+from typing import Any
 from enum import Enum
 
 from .llm import LLM, Message
