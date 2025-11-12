@@ -98,7 +98,7 @@ class LLM:
             model=self.model,
             messages=api_messages,  # type: ignore
             stream=True,
-            **(kwargs | self.extra_kwargs),
+            **(self.extra_kwargs | kwargs),
         ):
             content = chunk.choices[0].delta.content
             if content is None:
@@ -129,7 +129,7 @@ class LLM:
             model=self.model,
             messages=api_messages,  # type: ignore
             response_format=model,
-            **(kwargs | self.extra_kwargs),
+            **(self.extra_kwargs | kwargs),
         )
         result = response.choices[0].message.parsed
         if result is None:
