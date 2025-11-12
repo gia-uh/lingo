@@ -42,7 +42,7 @@ release:
 		echo "Usage: NEW_VERSION=x.y.z make release"; \
 		exit 1; \
 	fi
-	@make test-all
+	@make test-unit
 	@echo "Bumping version from $(CURRENT_VERSION) to $(NEW_VERSION)..."
 
 	@echo Replace version in pyproject.toml

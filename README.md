@@ -2,6 +2,17 @@
 
 <p align="center"> <strong>A minimal, async-native, and unopinionated toolkit for modern LLM applications.</strong> </p>
 
+---
+
+<!-- Project badges -->
+![PyPI - Version](https://img.shields.io/pypi/v/lingo)
+![PyPi - Python Version](https://img.shields.io/pypi/pyversions/lingo)
+![Github - Open Issues](https://img.shields.io/github/issues-raw/gia-uh/lingo)
+![PyPi - Downloads (Monthly)](https://img.shields.io/pypi/dm/lingo)
+![Github - Commits](https://img.shields.io/github/commit-activity/m/gia-uh/lingo)
+
+-----
+
 `lingo` provides a powerful, two-layered API for building, testing, and deploying complex LLM workflows with precision and clarity.
 
 ## The Philosophy: A Dual-Layer API
