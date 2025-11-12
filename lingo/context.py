@@ -5,7 +5,7 @@ from typing import Any
 from enum import Enum
 
 from .llm import LLM, Message
-from .tools import  Tool, ToolResult
+from .tools import Tool, ToolResult
 from .prompts import (
     DEFAULT_EQUIP_PROMPT,
     DEFAULT_INVOKE_PROMPT,

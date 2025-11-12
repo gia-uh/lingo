@@ -75,14 +75,14 @@ def generate_pydantic_code(model_cls: type[BaseModel]) -> str:
             if isinstance(field_type, type) and issubclass(field_type, BaseModel):
                 subtypes.append(field_type)
             elif origin_type:
-                 # Check args for nested models
+                # Check args for nested models
                 for arg in getattr(field_type, "__args__", []):
                     if isinstance(arg, type) and issubclass(arg, BaseModel):
-                         subtypes.append(arg)
+                        subtypes.append(arg)
 
         # Add the class lines to the main lines
         lines.extend(class_lines)
-        lines.append("") # Add a blank line
+        lines.append("")  # Add a blank line
 
         # Generate subtypes after the current class
         for sub_cls in subtypes:

@@ -29,6 +29,7 @@ class Node(abc.ABC):
 
 # --- "Leaf" Nodes (Primitive Operations) ---
 
+
 class AddSystemMessage(Node):
     """A Leaf node that adds a static system message to the context."""
 
@@ -105,6 +106,7 @@ class NoOp(Node):
 
 # --- "Composite" Nodes (Containers) ---
 
+
 class Sequence(Node):
     """
     A Composite node that holds an ordered list of child nodes
@@ -160,6 +162,7 @@ class Choose(Node):
 
 
 # --- User-Facing Fluent API ---
+
 
 class Flow(Sequence):
     """
@@ -224,12 +227,7 @@ class Flow(Sequence):
         self.nodes.append(Invoke(*tools))
         return self
 
-    def decide(
-        self,
-        prompt: str,
-        on_true: Node,
-        on_false: Node = NoOp()
-    ) -> "Flow":
+    def decide(self, prompt: str, on_true: Node, on_false: Node = NoOp()) -> "Flow":
         """
         Adds a conditional branching step (True/False).
         The LLM will make a boolean decision based on the prompt.
@@ -243,11 +241,7 @@ class Flow(Sequence):
         self.nodes.append(Decide(on_true, on_false, instruction))
         return self
 
-    def choose(
-        self,
-        prompt: str,
-        choices: dict[str, Node]
-    ) -> "Flow":
+    def choose(self, prompt: str, choices: dict[str, Node]) -> "Flow":
         """
         Adds a multi-way branching step.
         The LLM will choose one of the string keys from the 'choices' dict.

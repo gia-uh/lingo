@@ -41,10 +41,10 @@ class Message(BaseModel):
 
         # If content is a Pydantic model, serialize it to JSON string
         if isinstance(self.content, BaseModel):
-            dump['content'] = self.content.model_dump_json()
+            dump["content"] = self.content.model_dump_json()
         else:
             # Otherwise, just convert content to string
-            dump['content'] = str(self.content)
+            dump["content"] = str(self.content)
 
         return dump
 
