@@ -170,16 +170,6 @@ class Flow(Sequence):
     composed of other nodes and even nested inside other Flows.
     """
 
-    def __init__(self, llm: LLM):
-        """
-        Initializes a new Flow pipeline.
-
-        Args:
-            llm: The LLM instance to be used by this flow.
-        """
-        self.llm = llm
-        super().__init__()  # Initializes self.nodes = []
-
     def system(self, content: str) -> "Flow":
         """
         Adds a step to append a system message to the context.
@@ -271,7 +261,7 @@ class Flow(Sequence):
         self.nodes.append(Choose(choices, instruction))
         return self
 
-    async def run(self, messages: list[Message]) -> Context:
+    async def run(self, llm: LLM, messages: list[Message]) -> Context:
         """
         Executes the entire defined flow.
 
@@ -286,6 +276,6 @@ class Flow(Sequence):
             The final, mutated Context object after all steps
             have been run.
         """
-        context = Context(self.llm, list(messages))
+        context = Context(llm, list(messages))
         await self.execute(context)
         return context
