@@ -11,6 +11,7 @@ pytestmark = pytest.mark.asyncio
 
 class SampleModel(BaseModel):
     """A simple Pydantic model for testing the 'create' method."""
+
     name: str
     value: int
 
@@ -54,6 +55,7 @@ async def test_llm_init(mock_client):
     # Verify that our patch was used and the client was instantiated
     # (via the lingo.llm.openai import)
     from lingo.llm import openai
+
     openai.AsyncOpenAI.assert_called_with(base_url="test_url", api_key="test_key")
 
 
@@ -64,7 +66,7 @@ async def test_llm_chat_streaming(mock_client):
     # 1. Define the mock response
     stream_content = ["Hello", ",", " ", "world", "!"]
     mock_client.chat.completions.create = AsyncMock(
-        return_value = mock_chat_stream(stream_content)
+        return_value=mock_chat_stream(stream_content)
     )
 
     # 2. Call the method
@@ -87,11 +89,12 @@ async def test_llm_chat_with_callback(mock_client):
     """Test that the 'chat' method calls the callback with each chunk."""
     stream_content = ["One", "Two", "Three"]
     mock_client.chat.completions.create = AsyncMock(
-        return_value = mock_chat_stream(stream_content)
+        return_value=mock_chat_stream(stream_content)
     )
 
     # Create a callback function to track calls
     callback_chunks = []
+
     def sync_callback(chunk):
         callback_chunks.append(chunk)
 
@@ -114,7 +117,7 @@ async def test_llm_create_pydantic(mock_client):
     mock_response.choices[0].message.parsed = expected_result
 
     # Set the return value for the 'parse' method
-    mock_client.beta.chat.completions.parse = AsyncMock(return_value = mock_response)
+    mock_client.beta.chat.completions.parse = AsyncMock(return_value=mock_response)
 
     # 2. Call the method
     messages = [Message.user("Create the object")]
