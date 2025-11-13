@@ -51,13 +51,16 @@ async def banker(context: Context, engine: Engine):
     """
     tool = await engine.equip(context)
     result = await engine.invoke(context, tool)
-    await engine.reply(context, Message.system(result), Message.system("Inform the user the result of the operation."))
+    await engine.reply(
+        context,
+        Message.system(result),
+        Message.system("Inform the user the result of the operation."),
+    )
 
 
 @bot.tool
 async def check_balance() -> dict:
-    """Returns the balance in the user account.
-    """
+    """Returns the balance in the user account."""
     return dict(balance=account.balance)
 
 

@@ -32,7 +32,7 @@ class Lingo:
         self.tools: list[Tool] = tools or []
         self.messages: list[Message] = []
 
-    def skill(self, func: Callable[[Context, Engine],Coroutine]):
+    def skill(self, func: Callable[[Context, Engine], Coroutine]):
         """
         Decorator to register a method as a skill for the chatbot.
         """

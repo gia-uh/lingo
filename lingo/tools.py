@@ -54,11 +54,7 @@ class DelegateTool(Tool):
             args = self._target.__annotations__
 
         # Exclude 'return'
-        return {
-            name: type_
-            for name, type_ in args.items()
-            if name != "return"
-        }
+        return {name: type_ for name, type_ in args.items() if name != "return"}
 
     async def run(self, **kwargs) -> Any:
         """Runs the wrapped function."""
