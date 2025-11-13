@@ -54,8 +54,10 @@ release:
 	@echo Remove backup files
 	@rm pyproject.toml.bak lingo/__init__.py.bak
 
+	@uv sync
+
 	@echo "Committing version bump..."
-	@git add pyproject.toml lingo/__init__.py
+	@git add pyproject.toml beaver/__init__.py uv.lock
 	@git commit -m "Bump version to $(NEW_VERSION)"
 
 	@echo "Tagging new version..."
@@ -67,7 +69,5 @@ release:
 
 	@echo "Creating Github release..."
 	@gh release create "v$(NEW_VERSION)" --title "v$(NEW_VERSION)" --notes "Release version $(NEW_VERSION)"
-
-	@uv sync
 
 	@echo "✅ Version $(NEW_VERSION) successfully released."
