@@ -1,6 +1,6 @@
 import abc
 import asyncio
-from typing import Any, Callable, Self, Type
+from typing import Any, Callable, Coroutine, Self, Type
 import uuid
 
 from pydantic import BaseModel
@@ -113,7 +113,7 @@ class FunctionalNode(Node):
     A wrapper Node that executes a user-provided function.
     """
 
-    def __init__(self, func: Callable[..., Any]):
+    def __init__(self, func: Callable[[Context, Engine], Coroutine]):
         if not asyncio.iscoroutinefunction(func):
             raise TypeError("Flow function must be a coroutine function")
 
@@ -319,7 +319,7 @@ class Flow(Sequence):
         """
         return self.then(Create(model, prompt))
 
-    def custom(self, func: Callable[[Context, Engine], None]) -> "Flow":
+    def custom(self, func: Callable[[Context, Engine], Coroutine]) -> "Flow":
         return self.then(FunctionalNode(func))
 
     def route(self, *flows: "Flow") -> "Flow":
@@ -353,7 +353,7 @@ class Flow(Sequence):
 # Utilities
 
 
-def flow(func: Callable[[Context, Engine], None]) -> Flow:
+def flow(func: Callable[[Context, Engine], Coroutine]) -> Flow:
     """
     A decorator that converts a function into a Flow instance.
     The function must be a coroutine taking (Context, Engine).

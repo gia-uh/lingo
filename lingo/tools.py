@@ -1,7 +1,7 @@
 import abc
 import asyncio
 from pydantic import BaseModel
-from typing import Callable, Any, TYPE_CHECKING, get_type_hints
+from typing import Callable, Any, get_type_hints
 
 
 class ToolResult(BaseModel):
@@ -53,11 +53,11 @@ class DelegateTool(Tool):
             # Fallback if type hints are complex
             args = self._target.__annotations__
 
-        # Exclude 'return' and injected 'LLM'
+        # Exclude 'return'
         return {
             name: type_
             for name, type_ in args.items()
-            if name != "return" and type_.__name__ != "LLM"
+            if name != "return"
         }
 
     async def run(self, **kwargs) -> Any:

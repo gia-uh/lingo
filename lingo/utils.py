@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import get_type_hints, Optional, Union, Any
+from typing import get_type_hints, Union, Any
 
 
 def type_to_str(tp: Any) -> str:

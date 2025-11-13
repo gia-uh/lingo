@@ -5,6 +5,7 @@ This class holds the LLM-interacting logic, acting as the "behavior"
 layer that operates on the pure-state "Context" objects.
 """
 
+import json
 from pydantic import BaseModel, create_model
 from typing import Any, Type
 from enum import Enum
@@ -16,6 +17,8 @@ from .prompts import (
     DEFAULT_EQUIP_PROMPT,
     DEFAULT_DECIDE_PROMPT,
     DEFAULT_CHOOSE_PROMPT,
+    DEFAULT_INVOKE_PROMPT,
+    DEFAULT_CREATE_PROMPT,
 )
 
 
@@ -63,11 +66,10 @@ class Engine:
         call_messages = self._expand_content(context, *instructions)
 
         # Addressing Issue #2: Using a simplified prompt without code generation
-        prompt_str = (
-            f"Your task is to create an object of type {model.__name__}.\n"
-            f"Documentation: {model.__doc__ or 'N/A'}\n"
-            "Reply only with a JSON object that matches the following schema:\n"
-            f"{model.model_json_schema()}"
+        prompt_str = DEFAULT_CREATE_PROMPT.format(
+            type=model.__name__,
+            docs=model.__doc__ or "N/A",
+            schema=model.model_json_schema(),
         )
 
         call_messages.append(Message.system(prompt_str))
@@ -148,9 +150,6 @@ class Engine:
         2. Merges with **kwargs.
         3. Executes the Tool.
         4. Returns a ToolResult (with data or error).
-
-        (Fixes Issue #4: Simplify param generation)
-        (Fixes Issue #5: Inject LLM into tool)
         """
         try:
             parameters: dict[str, Any] = tool.parameters()
@@ -163,12 +162,12 @@ class Engine:
             )
 
             # 2. Ask the LLM to fill in this *full* model.
-            prompt_str = (
-                "Based on the conversation, generate all parameters "
-                f"for the tool: '{tool.name}'.\n"
-                f"Tool Description: {tool.description}\n"
-                "Provide *all* parameters in the following JSON schema:\n"
-                f"{model_cls.model_json_schema()}"
+            prompt_str = DEFAULT_INVOKE_PROMPT.format(
+                name=tool.name,
+                description=tool.description,
+                parameters=parameters,
+                defaults=json.dumps(kwargs),
+                schema=model_cls.model_json_schema(),
             )
 
             call_messages = self._expand_content(
@@ -184,7 +183,6 @@ class Engine:
             # 3. Merge, with **kwargs taking precedence
             all_params = {**generated_dict, **kwargs}
 
-            # --- Fix for Issue #5 ---
             # Wrap the tool's run method to inject the LLM
             wrapped_run = self._llm.wrap(tool.run)
 

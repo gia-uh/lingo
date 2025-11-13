@@ -64,49 +64,28 @@ Name: {name}.
 Description:
 {description}
 
-Defaults:
-{defaults}
-
-Missing parameters:
+Parameters:
 {parameters}
+
+Default values:
+{defaults}
 
 Return the reasoning and parameters as a JSON object
 with the following format:
 
-{format}
+{schema}
 
-Provide only the values for the parameters without defaults.
-"""
-
-
-DEFAULT_ENGAGE_PROMPT = """
-You have the following skills:
-
-{skills}
-
-Given the previous messages, select the best
-skill to respond to the user.
-
-First provide a reasoning of the selection,
-and then the name of the relevant skill.
-
-Reply with a JSON object in the following format:
-
-{format}
+Provide only the values for the parameters without defaults,
+and repeat the default values where they are defined.
 """
 
 
 DEFAULT_CREATE_PROMPT = """
-Your task is to create an object of type {type} defined as
-a Pydantic model with the following signature:
+Your task is to create an object of type {type}.
 
-```python
-{signature}
-```
-
-{docs}
+Documentation: {docs}
 
 Reply only with a JSON object that represents a {type} in the following format:
 
-{format}
+{schema}
 """

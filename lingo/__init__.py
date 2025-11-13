@@ -3,11 +3,13 @@ from .core import Lingo
 from .flow import Flow, flow
 from .llm import LLM, Message
 from .tools import tool
+from .engine import Engine
 
 __version__ = "0.1.5"
 
 __all__ = [
     "Context",
+    "Engine",
     "flow",
     "Flow",
     "Lingo",
