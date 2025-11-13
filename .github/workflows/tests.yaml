@@ -29,4 +29,4 @@ jobs:
         run: uv run black --check .
 
       - name: Run tests with coverage
-        run: uv run pytest --cov=beaver --cov-report=xml --cov-report=term
+        run: uv run pytest --cov=lingo --cov-report=xml --cov-report=term

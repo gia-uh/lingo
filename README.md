@@ -27,10 +27,8 @@
 ## Installation
 
 ```
-pip install lingo
+pip install lingo-ai
 ```
-
-_(Note: `lingo` is not yet on PyPI. This is the intended installation method.)_
 
 ## Quickstart: Building a Declarative `Flow`
 

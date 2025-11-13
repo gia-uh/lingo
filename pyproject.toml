@@ -1,7 +1,7 @@
 [project]
 name = "lingo-ai"
 version = "0.1.4"
-description = "Add your description here"
+description = "A minimal, async-native, and unopinionated toolkit for modern LLM applications."
 readme = "README.md"
 authors = [
     { name = "Alejandro Piad", email = "apiad@apiad.net" }
