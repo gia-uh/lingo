@@ -1,5 +1,6 @@
 import abc
-from typing import Any, Callable, Type
+import asyncio
+from typing import Any, Callable, Self, Type
 import uuid
 
 from pydantic import BaseModel
@@ -118,12 +119,16 @@ class Create(Node):
         response = await context.create(model=self.model, *self.instructions)
         context.add(Message.system(response))
 
+
 class FunctionalNode(Node):
     """
     A wrapper Node that executes a user-provided function.
     """
 
     def __init__(self, func: Callable[..., Any]):
+        if not asyncio.iscoroutinefunction(func):
+            raise TypeError("Flow function must be a coroutine function")
+
         self.func = func
 
     async def execute(self, context: Context) -> None:
@@ -147,6 +152,10 @@ class Sequence(Node):
         """Executes each child node in order."""
         for node in self.nodes:
             await node.execute(context)
+
+    def add(self, node: Node) -> Self:
+        self.nodes.append(node)
+        return self
 
 
 class Decide(Node):
@@ -192,6 +201,7 @@ class Route(Node):
     A container node that automatically routes between
     two or more flows.
     """
+
     def __init__(self, *flows: "Flow") -> None:
         if len(flows) < 2:
             raise ValueError("Route needs at least two flows.")
@@ -232,7 +242,8 @@ class Flow(Sequence):
     A Flow is itself a 'Sequence' Node, allowing it to be
     composed of other nodes and even nested inside other Flows.
     """
-    def __init__(self, name: str|None = None, description: str|None = None):
+
+    def __init__(self, name: str | None = None, description: str | None = None):
         self.name = name or f"Flow-{str(uuid.uuid4())}"
         self.description = description or ""
 
@@ -332,6 +343,9 @@ class Flow(Sequence):
         self.nodes.append(Create(model, *instructions))
         return self
 
+    def custom(self, func: Callable[[Context], None]) -> "Flow":
+        return self.add(FunctionalNode(func))
+
     async def __call__(self, llm: LLM, messages: list[Message]) -> Context:
         """
         Executes the entire defined flow.
@@ -350,3 +364,14 @@ class Flow(Sequence):
         context = Context(llm, list(messages))
         await self.execute(context)
         return context
+
+
+# Utilities
+
+
+def flow(func: Callable[[Context], None]) -> Flow:
+    """
+    A decorator that converts a function into a Flow instance.
+    Use the function's docstring as the Flow's description.
+    """
+    return Flow(name=func.__name__, description=func.__doc__).custom(func)
