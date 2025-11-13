@@ -1,5 +1,6 @@
 import abc
 from typing import Any, Type
+import uuid
 
 from pydantic import BaseModel
 
@@ -186,6 +187,12 @@ class Flow(Sequence):
     A Flow is itself a 'Sequence' Node, allowing it to be
     composed of other nodes and even nested inside other Flows.
     """
+    def __init__(self, name: str|None = None, description: str|None = None):
+        self.name = name or f"Flow-{str(uuid.uuid4())}"
+        self.description = description or ""
+
+    def __str__(self) -> str:
+        return self.name
 
     def system(self, content: str) -> "Flow":
         """
@@ -280,7 +287,7 @@ class Flow(Sequence):
         self.nodes.append(Create(model, *instructions))
         return self
 
-    async def run(self, llm: LLM, messages: list[Message]) -> Context:
+    async def __call__(self, llm: LLM, messages: list[Message]) -> Context:
         """
         Executes the entire defined flow.
 
