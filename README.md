@@ -58,7 +58,7 @@ bot = Lingo(
 bot.loop()
 ```
 
-That's it\! You now have a fully interactive chatbot.
+That's it! You now have a fully interactive chatbot.
 
 ```
 Name: Assistant
@@ -192,7 +192,7 @@ asyncio.run(main())
 
 ## Contributing
 
-Contributions are welcome\! `lingo` is an open-source project, and we'd love your help in making it better. Please feel free to open an issue or submit a pull request.
+Contributions are welcome! `lingo` is an open-source project, and we'd love your help in making it better. Please feel free to open an issue or submit a pull request.
 
 ## License
 
