@@ -3,7 +3,7 @@ import pytest_asyncio
 from unittest.mock import MagicMock, Mock, AsyncMock
 from pydantic import BaseModel
 
-from lingo.llm import LLM, Message
+from lingo import LLM, Message
 
 # We'll need pytest-asyncio to test async functions
 pytestmark = pytest.mark.asyncio

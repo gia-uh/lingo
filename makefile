@@ -57,7 +57,7 @@ release:
 	@uv sync
 
 	@echo "Committing version bump..."
-	@git add pyproject.toml beaver/__init__.py uv.lock
+	@git add pyproject.toml lingo/__init__.py uv.lock
 	@git commit -m "Bump version to $(NEW_VERSION)"
 
 	@echo "Tagging new version..."
