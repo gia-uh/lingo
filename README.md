@@ -13,162 +13,186 @@
 
 -----
 
-`lingo` provides a powerful, two-layered API for building, testing, and deploying complex LLM workflows with precision and clarity.
+`lingo` provides a powerful, three-layered API for building, testing, and deploying complex LLM workflows with precision and clarity.
 
-## The Philosophy: A Dual-Layer API
+## The Philosophy: A Three-Layer API
 
-`lingo` is built on the idea that developers need both a high-level, declarative way to _build_ workflows and a low-level, imperative way to _control_ them.
+`lingo` is built on the idea that developers need different levels of abstraction for different tasks.
 
-1. **The High-Level `Flow` API**: For most applications, you'll use the fluent, chainable `Flow` API. This allows you to define complex, reusable conversation logic with branching, tool use, and subroutines in a declarative, readable way.
-
-2. **The Low-Level `Context` API**: For full, fine-grained control, `lingo` provides the `LLM` and `Context` classes. This imperative layer is perfect for building custom chatbot loops or implementing your own conversational state logic from scratch.
-
+1.  **The High-Level `Lingo` API**: For purely declarative, ready-to-use LLM assistants. This is the fastest way to get a chatbot running.
+2.  **The Mid-Level `Flow` API**: For declarative, reusable context engineering workflows. This allows you to define complex, composable logic with branching, tool use, and subroutines.
+3.  **The Low-Level (`LLM`, `Engine`, `Context`) API**: For direct, explicit context engineering. This gives you full, imperative control over the message history and LLM interactions.
 
 ## Installation
 
-```
+```bash
 pip install lingo-ai
 ```
 
-## Quickstart: Building a Declarative `Flow`
+You will also need to set your environment variables (e.g., in a `.env` file) for your LLM provider:
 
-Let's build a simple assistant that can check the weather, but will first decide if the user is being polite.
+```.env
+# Example for OpenAI
+MODEL="gpt-4o"
+API_KEY="sk-..."
+```
 
-### 1. Define Tools & LLM
+## Quickstart: A 5-Line Chatbot
+
+This is the fastest way to get a `lingo` assistant running using the high-level `Lingo` class.
+
+```python
+from lingo import Lingo
+import dotenv
+
+# Load .env variables (API_KEY, MODEL)
+dotenv.load_dotenv()
+
+# 1. Initialize the assistant
+bot = Lingo(
+    name="Assistant",
+    description="A simple, helpful chatbot."
+)
+
+# 2. Run the chat loop in your terminal
+bot.loop()
+```
+
+That's it\! You now have a fully interactive chatbot.
+
+```
+Name: Assistant
+Description: A simple, helpful chatbot.
+
+[Press Ctrl+D to exit]
+
+>>> Hello!
+Hello! How can I help you today?
+>>>
+```
+
+## The Three API Layers
+
+`lingo` gives you the flexibility to choose the right level of abstraction.
+
+### 1\. High-Level API: The `Lingo` Class
+
+This is the "batteries-included" approach. The `Lingo` class manages the `LLM`, `Engine`, and `Flow` for you. You just define **skills** (reusable flows) and **tools**, and `lingo` handles routing the conversation to the correct one.
+
+This is the recommended starting point for most applications.
+
+```python
+from lingo import Lingo, Context, Engine
+import dotenv
+
+dotenv.load_dotenv()
+
+bot = Lingo(
+    name="Greeter",
+    description="A bot that just says hello."
+)
+
+# A "skill" is a complete, self-contained workflow
+@bot.skill
+async def greet(context: Context, engine: Engine):
+    """A skill to greet the user."""
+    await engine.reply(
+        context,
+        "You are a friendly greeter. Reply with a warm welcome."
+    )
+
+bot.loop()
+```
+
+### 2\. Mid-Level API: The `Flow` Class
+
+The `Flow` class provides a fluent, chainable interface for declaratively building reusable workflows. You define the *steps* of the conversation, and `lingo` handles the execution. This is perfect for defining complex, stateful logic.
 
 ```python
 import asyncio
-from lingo.llm import LLM, Message
+from lingo import Lingo, Flow, Message, Engine
 from lingo.tools import tool
-from lingo.flow import Flow, NoOp
 
 llm = LLM(model="gpt-4o")
 
 @tool
 async def get_weather(location: str) -> str:
     """Gets the current weather for a specified location."""
-    if "boston" in location.lower():
-        return "It's 75°F and sunny in Boston."
-    else:
-        return f"Weather for {location} is unknown."
-```
+    return "It's 75°F and sunny."
 
-### 2. Define Reusable Sub-Flows
-
-
-```python
-# A sub-flow is just another 'Flow' instance.
-polite_flow = Flow().system(
-    "Acknowledge the user's politeness before proceeding."
-)
-```
-
-### 3. Define the Main Workflow
-
-
-```python
-main_flow = (
-    Flow()
-    # Step 1: Add a system message to the context
-    .system("You are a helpful assistant. You can check the weather.")
-
-    # Step 2: Use an LLM to make a True/False decision
-    .decide(
-        prompt="Is the user being polite (e.g., asking 'please')?",
-        on_true=polite_flow,  # Run the sub-flow if True
-        on_false=NoOp()       # Do nothing if False
-    )
-
-    # Step 3: Equip and invoke a tool from the available list
-    .invoke(get_weather)
-
-    # Step 4: Generate a final reply using the tool's output
-    .reply()
-)
-```
-
-### 4. Execute the Flow
-
-
-```python
-async def main():
-    # Example 1: The "polite" branch
-    user_query_1 = "Could you please tell me the weather in Boston?"
-
-    # .execute() runs the full pipeline on the initial messages
-    final_context = await main_flow.run(llm, [Message.user(user_query_1)])
-
-    print(f"User: {user_query_1}")
-    print(f"Assistant: {final_context.messages[-1].content}")
-    # Assistant: It's 75°F and sunny in Boston. I'm happy to help!
-
-    print("\n" + "-"*20 + "\n")
-
-    # Example 2: The "impolite" branch
-    user_query_2 = "boston weather now"
-    final_context_2 = await main_flow.run(llm, [Message.user(user_query_2)])
-
-    print(f"User: {user_query_2}")
-    print(f"Assistant: {final_context_2.messages[-1].content}")
-    # Assistant: It's 75°F and sunny in Boston.
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-## The Two APIs
-
-`lingo` gives you the flexibility to choose the right level of abstraction.
-
-### 1. High-Level API: `Flow`
-
-The `Flow` class provides a fluent, chainable interface for declaratively building reusable workflows. You define the _steps_ of the conversation, and `lingo` handles the execution.
-
-```python
 # A flow is a composable, reusable blueprint
 weather_flow = (
-    Flow()
+    Flow(name="Weather")
     .system("You only answer with the weather.")
-    .invoke(get_weather)
-    .reply()
+    .invoke(get_weather)  # -> ToolResult is added to context
+    .reply()              # -> LLM generates reply based on ToolResult
 )
 
 # You can nest flows inside other flows
 main_flow = (
-    Flow()
+    Flow(name="Main")
     .choose(
         prompt="Is the user asking about weather or stocks?",
         choices={
             "weather": weather_flow,
-            "stocks": stock_flow,
+            "stocks": Flow().reply("I don't know about stocks."),
         }
     )
 )
+
+async def main():
+    engine = Engine(llm)
+    messages = [Message.user("What's the weather like?")]
+
+    # Run the flow
+    final_context = await main_flow(engine, messages)
+    print(final_context.messages[-1].content)
+
+asyncio.run(main())
 ```
 
-### 2. Low-Level API: `LLM` & `Context`
+### 3\. Low-Level API: `LLM`, `Engine`, & `Context`
 
-For maximum control, you can use the imperative API. The `Context` object holds the message history, and you call its methods (`.reply()`, `.decide()`, `.invoke()`) directly. This is ideal for building custom chatbot loops.
+For maximum control, you can use the imperative API.
+
+  * **`Context`**: A simple, mutable object holding the `list[Message]`.
+  * **`LLM`**: The client for interacting with the LLM API (e.g., `chat`, `create`).
+  * **`Engine`**: The "behavior" layer. It holds the `LLM` and performs operations *on* a `Context` (e.g., `engine.reply(context)`, `engine.invoke(context, tool)`).
+
+This is ideal for building custom chatbot loops or integrating `lingo` into an existing application.
 
 ```python
-# Manually building a conversation turn by turn
-llm = LLM(model="gpt-4o")
-context = Context(llm, [Message.system("You are a chatbot.")])
+import asyncio
+from lingo import LLM, Engine, Context, Message
 
-while True:
-    user_input = input("You: ")
-    context.add(Message.user(user_input))
+async def main():
+    # 1. Setup the components
+    llm = LLM(model="gpt-4o")
+    engine = Engine(llm)
 
-    # Call the LLM with the current context
-    response = await context.reply()
+    # 2. The Context is a pure, mutable state object
+    context = Context([
+        Message.system("You are a helpful assistant.")
+    ])
 
-    context.add(response)
+    # 3. Manually build the conversation
+    user_input = "Hello!"
+    context.append(Message.user(user_input))
+
+    # 4. Call the Engine to perform an LLM operation
+    response = await engine.reply(context)
+
+    # 5. Mutate the context with the new message
+    context.append(response)
+
     print(f"Bot: {response.content}")
+
+asyncio.run(main())
 ```
 
 ## Contributing
 
-Contributions are welcome! `lingo` is an open-source project, and we'd love your help in making it better. Please feel free to open an issue or submit a pull request.
+Contributions are welcome\! `lingo` is an open-source project, and we'd love your help in making it better. Please feel free to open an issue or submit a pull request.
 
 ## License
 
