@@ -75,7 +75,7 @@ Hello! How can I help you today?
 
 `lingo` gives you the flexibility to choose the right level of abstraction.
 
-### 1\. High-Level API: The `Lingo` Class
+### 1. High-Level API: The `Lingo` Class
 
 This is the "batteries-included" approach. The `Lingo` class manages the `LLM`, `Engine`, and `Flow` for you. You just define **skills** (reusable flows) and **tools**, and `lingo` handles routing the conversation to the correct one.
 
@@ -104,7 +104,7 @@ async def greet(context: Context, engine: Engine):
 bot.loop()
 ```
 
-### 2\. Mid-Level API: The `Flow` Class
+### 2. Mid-Level API: The `Flow` Class
 
 The `Flow` class provides a fluent, chainable interface for declaratively building reusable workflows. You define the *steps* of the conversation, and `lingo` handles the execution. This is perfect for defining complex, stateful logic.
 
@@ -133,10 +133,10 @@ main_flow = (
     Flow(name="Main")
     .choose(
         prompt="Is the user asking about weather or stocks?",
-        choices={
-            "weather": weather_flow,
-            "stocks": Flow().reply("I don't know about stocks."),
-        }
+        choices=dict(
+            weather=weather_flow,
+            stocks=Flow().reply("I don't know about stocks."),
+        )
     )
 )
 
@@ -151,7 +151,7 @@ async def main():
 asyncio.run(main())
 ```
 
-### 3\. Low-Level API: `LLM`, `Engine`, & `Context`
+### 3. Low-Level API: `LLM`, `Engine`, & `Context`
 
 For maximum control, you can use the imperative API.
 
