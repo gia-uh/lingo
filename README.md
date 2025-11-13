@@ -5,10 +5,10 @@
 ---
 
 <!-- Project badges -->
-![PyPI - Version](https://img.shields.io/pypi/v/lingo)
-![PyPi - Python Version](https://img.shields.io/pypi/pyversions/lingo)
+![PyPI - Version](https://img.shields.io/pypi/v/lingo-ai)
+![PyPi - Python Version](https://img.shields.io/pypi/pyversions/lingo-ai)
 ![Github - Open Issues](https://img.shields.io/github/issues-raw/gia-uh/lingo)
-![PyPi - Downloads (Monthly)](https://img.shields.io/pypi/dm/lingo)
+![PyPi - Downloads (Monthly)](https://img.shields.io/pypi/dm/lingo-ai)
 ![Github - Commits](https://img.shields.io/github/commit-activity/m/gia-uh/lingo)
 
 -----
