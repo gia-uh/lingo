@@ -1,5 +1,5 @@
 import abc
-from typing import Any, Type
+from typing import Any, Callable, Type
 import uuid
 
 from pydantic import BaseModel
@@ -117,6 +117,17 @@ class Create(Node):
     async def execute(self, context: Context) -> None:
         response = await context.create(model=self.model, *self.instructions)
         context.add(Message.system(response))
+
+class FunctionalNode(Node):
+    """
+    A wrapper Node that executes a user-provided function.
+    """
+
+    def __init__(self, func: Callable[..., Any]):
+        self.func = func
+
+    async def execute(self, context: Context) -> None:
+        await self.func(context)
 
 
 # --- "Composite" Nodes (Containers) ---
