@@ -42,7 +42,6 @@ release:
 		echo "Usage: NEW_VERSION=x.y.z make release"; \
 		exit 1; \
 	fi
-	@git status
 	@make test-unit
 	@echo "Bumping version from $(CURRENT_VERSION) to $(NEW_VERSION)..."
 
