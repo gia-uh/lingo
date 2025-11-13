@@ -1,7 +1,7 @@
 ---
 number: 4
 title: "`Context.invoke` parameter generation logic is overly complex and error-prone"
-state: open
+state: closed
 labels:
 ---
 

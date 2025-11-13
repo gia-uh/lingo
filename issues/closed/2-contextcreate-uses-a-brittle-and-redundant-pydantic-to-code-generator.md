@@ -1,7 +1,7 @@
 ---
 number: 2
 title: "`Context.create` uses a brittle and redundant Pydantic-to-code generator"
-state: open
+state: closed
 labels:
 ---
 

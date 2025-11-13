@@ -1,7 +1,7 @@
 ---
 number: 5
-title: "LLM-aware\" tool feature is incomplete and non-functional**"
-state: open
+title: "LLM-aware tool feature is incomplete and non-functional"
+state: closed
 labels:
 ---
 
