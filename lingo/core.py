@@ -12,11 +12,11 @@ from .engine import Engine
 import asyncio
 
 
-class Chatbot:
+class Lingo:
     def __init__(
         self,
-        name: str,
-        description: str,
+        name: str = "Lingo",
+        description: str = "A friendly chatbot.",
         llm: LLM | None = None,
         skills: list[Flow] | None = None,
         tools: list[Tool] | None = None,
@@ -70,16 +70,16 @@ class Chatbot:
 
     async def run(self, input_fn=None, output_fn=None):
         """
-        Runs this model in the console, using optional
+        Runs this model in the terminal, using optional
         input and output callbacks.
 
         Args:
             input_fn: If provided, should be a function that
-                      returns the user message.
-                      Defaults to Python's builtin input().
+                returns the user message.
+                Defaults to Python's builtin input().
             output_fn: If provided, should be a callback to stream
-                       the LLM chat response.
-                       Defaults to print().
+                the LLM chat response.
+                Defaults to print().
         """
         if input_fn is None:
             input_fn = lambda: input(">>> ")
@@ -94,15 +94,15 @@ class Chatbot:
         else:
             self.llm.callback = output_fn
 
-        while True:
-            try:
+        try:
+            while True:
                 msg = input_fn()
                 await self.chat(msg)
                 output_fn("\n\n")
-            except EOFError:
-                break
-            finally:
-                self.llm.callback = original_callback
+        except EOFError:
+            pass
+        finally:
+            self.llm.callback = original_callback
 
     def loop(self, input_fn=None, output_fn=None):
         """
@@ -111,4 +111,7 @@ class Chatbot:
 
         Receives the same arguments as `run`.
         """
+        print("Name:", self.name)
+        print("Description:", self.description)
+        print("\n[Press Ctrl+D to exit]\n")
         asyncio.run(self.run(input_fn, output_fn))

@@ -1,11 +1,8 @@
-from lingo import Chatbot
+from lingo import Lingo
 import dotenv
 
 dotenv.load_dotenv()
 
-bot = Chatbot(
-    "Lingo",
-    "A friendly chatbot.",
-)
+bot = Lingo()
 
 bot.loop()
