@@ -5,7 +5,7 @@ from .llm import LLM, Message
 from .tools import tool
 from .engine import Engine
 
-__version__ = "0.1.5"
+__version__ = "0.2.1"
 
 __all__ = [
     "Context",
