@@ -176,6 +176,40 @@ class Choose(Node):
             await node_to_run.execute(context)
 
 
+class Route(Node):
+    """
+    A container node that automatically routes between
+    two or more flows.
+    """
+    def __init__(self, *flows: "Flow") -> None:
+        if len(flows) < 2:
+            raise ValueError("Route needs at least two flows.")
+
+        self.flows = list(flows)
+
+    async def execute(self, context: Context) -> None:
+        # Build a description list for the LLM
+        # We use the flow's name and description to guide the choice.
+        descriptions = []
+
+        for f in self.flows:
+            desc = f.description or "No description provided."
+            descriptions.append(f"{f.name}: {desc}")
+
+        instruction = (
+            "Read the following option descriptions:\n"
+            + "\n".join(descriptions)
+            + "\n\nSelect the most appropriate option to handle the conversation."
+        )
+
+        # context.choose uses str(option) for the list of keys.
+        # Since Flow.__str__ returns the name, the keys will be clean names.
+        selected_flow = await context.choose(list(self.flows), instruction)
+
+        # Execute the chosen Flow
+        await selected_flow.execute(context)
+
+
 # --- User-Facing Fluent API ---
 
 
