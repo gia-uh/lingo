@@ -165,9 +165,9 @@ class Decide(Node):
     child nodes (which are typically Sequence or NoOp nodes).
     """
 
-    def __init__(self, on_true: Node, on_false: Node, *instructions: str | Message):
-        self.on_true = on_true
-        self.on_false = on_false
+    def __init__(self, yes: Node, no: Node, *instructions: str | Message):
+        self.on_true = yes
+        self.on_false = no
         self.instructions = instructions
 
     async def execute(self, context: Context) -> None:
@@ -257,8 +257,7 @@ class Flow(Sequence):
         Args:
             content: The text content of the system message.
         """
-        self.nodes.append(AddSystemMessage(content))
-        return self
+        return self.add(AddSystemMessage(content))
 
     def user(self, content: str) -> "Flow":
         """
@@ -267,8 +266,7 @@ class Flow(Sequence):
         Args:
             content: The text content of the user message.
         """
-        self.nodes.append(AddUserMessage(content))
-        return self
+        return self.add(AddUserMessage(content))
 
     def assistant(self, content: str) -> "Flow":
         """
@@ -277,8 +275,7 @@ class Flow(Sequence):
         Args:
             content: The text content of the assistant message.
         """
-        self.nodes.append(AddAssistantMessage(content))
-        return self
+        return self.add(AddAssistantMessage(content))
 
     def reply(self, *instructions: str | Message) -> "Flow":
         """
@@ -289,8 +286,7 @@ class Flow(Sequence):
             *instructions: Optional, temporary instructions for this
                            specific reply, e.g., Message.system("Be concise").
         """
-        self.nodes.append(Reply(*instructions))
-        return self
+        return self.add(Reply(*instructions))
 
     def invoke(self, *tools: Tool) -> "Flow":
         """
@@ -301,10 +297,9 @@ class Flow(Sequence):
         Args:
             *tools: One or more Tool objects available for this step.
         """
-        self.nodes.append(Invoke(*tools))
-        return self
+        return self.add(Invoke(*tools))
 
-    def decide(self, prompt: str, on_true: Node, on_false: Node = NoOp()) -> "Flow":
+    def decide(self, prompt: str, yes: Node, no: Node = NoOp()) -> "Flow":
         """
         Adds a conditional branching step (True/False).
         The LLM will make a boolean decision based on the prompt.
@@ -314,9 +309,7 @@ class Flow(Sequence):
             on_true: The Node (e.g., another Flow) to execute if True.
             on_false: The Node to execute if False. Defaults to NoOp.
         """
-        instruction = Message.system(prompt)
-        self.nodes.append(Decide(on_true, on_false, instruction))
-        return self
+        return self.add(Decide(yes, no, prompt))
 
     def choose(self, prompt: str, choices: dict[str, Node]) -> "Flow":
         """
@@ -328,11 +321,9 @@ class Flow(Sequence):
             choices: A dictionary mapping string choices to the
                      Node (e.g., another Flow) to execute.
         """
-        instruction = Message.system(prompt)
-        self.nodes.append(Choose(choices, instruction))
-        return self
+        return self.add(Choose(choices, prompt))
 
-    def create(self, model: Type[BaseModel], *instructions: Message | str) -> "Flow":
+    def create(self, model: Type[BaseModel], prompt: str) -> "Flow":
         """
         Adds a step to create a Pydantic model from the LLM's response.
 
@@ -340,11 +331,13 @@ class Flow(Sequence):
             model: A pydantic class to create.
             instructions: Optional sequence of temporal instructions.
         """
-        self.nodes.append(Create(model, *instructions))
-        return self
+        return self.add(Create(model, prompt))
 
     def custom(self, func: Callable[[Context], None]) -> "Flow":
         return self.add(FunctionalNode(func))
+
+    def route(self, *flows: "Flow") -> "Flow":
+        return self.add(Route(*flows))
 
     async def __call__(self, llm: LLM, messages: list[Message]) -> Context:
         """
