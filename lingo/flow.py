@@ -1,5 +1,7 @@
 import abc
-from typing import Any
+from typing import Any, Type
+
+from pydantic import BaseModel
 
 from .context import Context
 from .llm import LLM, Message
@@ -102,6 +104,18 @@ class NoOp(Node):
 
     async def execute(self, context: Context) -> None:
         pass
+
+
+class Create(Node):
+    """A leaf node to create a custom object."""
+
+    def __init__(self, model: Type[BaseModel], *instructions: Message | str) -> None:
+        self.model = model
+        self.instructions = instructions
+
+    async def execute(self, context: Context) -> None:
+        response = await context.create(model=self.model, *self.instructions)
+        context.add(Message.system(response))
 
 
 # --- "Composite" Nodes (Containers) ---
@@ -253,6 +267,17 @@ class Flow(Sequence):
         """
         instruction = Message.system(prompt)
         self.nodes.append(Choose(choices, instruction))
+        return self
+
+    def create(self, model: Type[BaseModel], *instructions: Message | str) -> "Flow":
+        """
+        Adds a step to create a Pydantic model from the LLM's response.
+
+        Args:
+            model: A pydantic class to create.
+            instructions: Optional sequence of temporal instructions.
+        """
+        self.nodes.append(Create(model, *instructions))
         return self
 
     async def run(self, llm: LLM, messages: list[Message]) -> Context:

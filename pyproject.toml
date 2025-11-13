@@ -7,6 +7,13 @@ authors = [
     { name = "Alejandro Piad", email = "apiad@apiad.net" }
 ]
 requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
 dependencies = [
     "openai>=2.7.2",
     "pydantic>=2.12.4",
