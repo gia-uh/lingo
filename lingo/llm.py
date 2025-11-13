@@ -57,7 +57,7 @@ class LLM:
 
     def __init__(
         self,
-        model: str,
+        model: str | None = None,
         api_key: str | None = None,
         base_url: str | None = None,
         callback: Callable[[str], Any] | None = None,
@@ -73,14 +73,16 @@ class LLM:
             callback: A sync/async function called with each token chunk.
             **extra_kwargs: Additional arguments for the client (e.g., temperature).
         """
-        self.model = model
         self.callback = callback
 
+        if model is None:
+            model = os.getenv("MODEL")
         if base_url is None:
             base_url = os.getenv("BASE_URL")
         if api_key is None:
             api_key = os.getenv("API_KEY")
 
+        self.model = model
         self.client = openai.AsyncOpenAI(base_url=base_url, api_key=api_key)
         self.extra_kwargs = extra_kwargs
 

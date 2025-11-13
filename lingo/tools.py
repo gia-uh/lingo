@@ -65,7 +65,7 @@ class DelegateTool(Tool):
         return await self._target(**kwargs)
 
 
-async def tool(func: Callable) -> Tool:
+def tool(func: Callable) -> Tool:
     """
     A decorator to convert an async or sync function into a DelegateTool.
     The function's name and docstring are used as the Tool's

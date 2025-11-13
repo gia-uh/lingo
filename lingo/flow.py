@@ -34,34 +34,24 @@ class Node(abc.ABC):
 # --- "Leaf" Nodes (Primitive Operations) ---
 
 
-class AddSystemMessage(Node):
-    """A Leaf node that adds a static system message to the context."""
+class Append(Node):
+    """A Leaf node that appends a message to the context."""
 
-    def __init__(self, content: str):
-        self.content = content
-
-    async def execute(self, context: Context) -> None:
-        context.add(Message.system(self.content))
-
-
-class AddUserMessage(Node):
-    """A Leaf node that adds a static user message to the context."""
-
-    def __init__(self, content: str):
-        self.content = content
+    def __init__(self, msg: Message):
+        self.msg = msg
 
     async def execute(self, context: Context) -> None:
-        context.add(Message.user(self.content))
+        context.append(self.msg)
 
 
-class AddAssistantMessage(Node):
-    """A Leaf node that adds a static assistant message to the context."""
+class Prepend(Node):
+    """A Leaf node that prepends a message to the context."""
 
-    def __init__(self, content: str):
-        self.content = content
+    def __init__(self, msg: Message):
+        self.msg = msg
 
     async def execute(self, context: Context) -> None:
-        context.add(Message.assistant(self.content))
+        context.prepend(self.msg)
 
 
 class Reply(Node):
@@ -75,7 +65,7 @@ class Reply(Node):
 
     async def execute(self, context: Context) -> None:
         response = await context.reply(*self.instructions)
-        context.add(response)
+        context.append(response)
 
 
 class Invoke(Node):
@@ -98,7 +88,7 @@ class Invoke(Node):
         tool_result = await context.invoke(selected_tool)
 
         # 3. Add the result to the context
-        context.add(Message.tool(tool_result.model_dump()))
+        context.append(Message.tool(tool_result.model_dump()))
 
 
 class NoOp(Node):
@@ -117,7 +107,7 @@ class Create(Node):
 
     async def execute(self, context: Context) -> None:
         response = await context.create(model=self.model, *self.instructions)
-        context.add(Message.system(response))
+        context.append(Message.system(response))
 
 
 class FunctionalNode(Node):
@@ -153,7 +143,7 @@ class Sequence(Node):
         for node in self.nodes:
             await node.execute(context)
 
-    def add(self, node: Node) -> Self:
+    def then(self, node: Node) -> Self:
         self.nodes.append(node)
         return self
 
@@ -243,39 +233,38 @@ class Flow(Sequence):
     composed of other nodes and even nested inside other Flows.
     """
 
-    def __init__(self, name: str | None = None, description: str | None = None):
+    def __init__(
+        self,
+        name: str | None = None,
+        description: str | None = None,
+        tools: list[Tool] | None = None,
+    ):
         self.name = name or f"Flow-{str(uuid.uuid4())}"
         self.description = description or ""
+        self.tools = tools or []
 
     def __str__(self) -> str:
         return self.name
 
-    def system(self, content: str) -> "Flow":
+    def append(self, msg: str | Message) -> "Flow":
         """
-        Adds a step to append a system message to the context.
+        Adds a step to append a message to the context.
+        Defaults to system message.
+        """
+        if isinstance(msg, str):
+            msg = Message.system(msg)
 
-        Args:
-            content: The text content of the system message.
-        """
-        return self.add(AddSystemMessage(content))
+        return self.then(Append(msg))
 
-    def user(self, content: str) -> "Flow":
+    def prepend(self, msg: str | Message) -> "Flow":
         """
-        Adds a step to append a user message to the context.
+        Adds a step to prepend a message to the context.
+        Defaults to system message.
+        """
+        if isinstance(msg, str):
+            msg = Message.system(msg)
 
-        Args:
-            content: The text content of the user message.
-        """
-        return self.add(AddUserMessage(content))
-
-    def assistant(self, content: str) -> "Flow":
-        """
-        Adds a step to append an assistant message to the context.
-
-        Args:
-            content: The text content of the assistant message.
-        """
-        return self.add(AddAssistantMessage(content))
+        return self.then(Prepend(msg))
 
     def reply(self, *instructions: str | Message) -> "Flow":
         """
@@ -286,7 +275,7 @@ class Flow(Sequence):
             *instructions: Optional, temporary instructions for this
                            specific reply, e.g., Message.system("Be concise").
         """
-        return self.add(Reply(*instructions))
+        return self.then(Reply(*instructions))
 
     def invoke(self, *tools: Tool) -> "Flow":
         """
@@ -297,7 +286,7 @@ class Flow(Sequence):
         Args:
             *tools: One or more Tool objects available for this step.
         """
-        return self.add(Invoke(*tools))
+        return self.then(Invoke(*tools))
 
     def decide(self, prompt: str, yes: Node, no: Node = NoOp()) -> "Flow":
         """
@@ -309,7 +298,7 @@ class Flow(Sequence):
             on_true: The Node (e.g., another Flow) to execute if True.
             on_false: The Node to execute if False. Defaults to NoOp.
         """
-        return self.add(Decide(yes, no, prompt))
+        return self.then(Decide(yes, no, prompt))
 
     def choose(self, prompt: str, choices: dict[str, Node]) -> "Flow":
         """
@@ -321,7 +310,7 @@ class Flow(Sequence):
             choices: A dictionary mapping string choices to the
                      Node (e.g., another Flow) to execute.
         """
-        return self.add(Choose(choices, prompt))
+        return self.then(Choose(choices, prompt))
 
     def create(self, model: Type[BaseModel], prompt: str) -> "Flow":
         """
@@ -331,13 +320,13 @@ class Flow(Sequence):
             model: A pydantic class to create.
             instructions: Optional sequence of temporal instructions.
         """
-        return self.add(Create(model, prompt))
+        return self.then(Create(model, prompt))
 
     def custom(self, func: Callable[[Context], None]) -> "Flow":
-        return self.add(FunctionalNode(func))
+        return self.then(FunctionalNode(func))
 
     def route(self, *flows: "Flow") -> "Flow":
-        return self.add(Route(*flows))
+        return self.then(Route(*flows))
 
     async def __call__(self, llm: LLM, messages: list[Message]) -> Context:
         """
@@ -355,6 +344,10 @@ class Flow(Sequence):
             have been run.
         """
         context = Context(llm, list(messages))
+
+        for tool in self.tools:
+            context.register(tool)
+
         await self.execute(context)
         return context
 

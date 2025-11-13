@@ -1,11 +1,11 @@
 import asyncio
 import contextlib
 from pydantic import BaseModel, create_model
-from typing import Any
+from typing import Any, Callable
 from enum import Enum
 
 from .llm import LLM, Message
-from .tools import Tool, ToolResult
+from .tools import Tool, ToolResult, tool
 from .prompts import (
     DEFAULT_EQUIP_PROMPT,
     DEFAULT_INVOKE_PROMPT,
@@ -22,10 +22,15 @@ class Context:
     It holds the message history and a reference to its parent Flow.
     """
 
-    def __init__(self, llm: LLM, messages: list[Message]):
+    def __init__(self, llm: LLM, messages: list[Message], tools: list[Tool] | None = None):
         self._llm = llm
         self._messages = messages  # This is a mutable list
+        self._tools = list(tools or [])
         self._state_stack: list[list[Message]] = []  # For the fork() context manager
+
+    def register(self, tool: Tool):
+        "Register a tool instance."
+        self._tools.append(tool)
 
     @property
     def llm(self) -> LLM:
@@ -54,20 +59,27 @@ class Context:
         return all_messages
 
     # --- 1. Context Manipulation ---
-    def add(self, message: Message) -> None:
+    def append(self, message: Message) -> None:
         """
         Mutates the context by appending a message to its
         internal list.
         """
         self._messages.append(message)
 
+    def prepend(self, message: Message) -> None:
+        """
+        Mutates the context by prepending a message to its
+        internal list.
+        """
+        self._messages.insert(0, message)
+
     def add_user(self, content: str) -> None:
         """Helper to add a user message."""
-        self.add(Message.user(content))
+        self.append(Message.user(content))
 
     def add_system(self, content: str) -> None:
         """Helper to add a system message."""
-        self.add(Message.system(content))
+        self.append(Message.system(content))
 
     def clone(self) -> "Context":
         """
@@ -159,9 +171,15 @@ class Context:
         from the parent Flow's tool list.
         Does NOT mutate context.
         """
-        tool_map = {tool.name: tool for tool in tools}
-        if not tool_map:
-            raise ValueError("No tools available in the flow to equip.")
+        _tools = list(tools) or self._tools
+
+        if not _tools:
+            raise ValueError("No tools available.")
+
+        if len(_tools) == 1:
+            return _tools[0]
+
+        tool_map = {tool.name: tool for tool in _tools}
 
         enum_type = Enum("ToolChoices", {t: t for t in tool_map.keys()})
         model_cls = self._create_cot_model("Equip", enum_type)

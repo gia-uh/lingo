@@ -91,3 +91,14 @@ def generate_pydantic_code(model_cls: type[BaseModel]) -> str:
 
     generate(model_cls, lines, visited)
     return "\n".join(lines)
+
+
+def tee(*functions):
+    """
+    Calls all functions with the same argunents.
+    """
+    def wrapper(*args, **kwargs):
+        for fn in functions:
+            fn(*args, **kwargs)
+
+    return wrapper
