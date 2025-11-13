@@ -7,21 +7,32 @@ from .llm import LLM, Message
 from .tools import Tool, tool
 from .context import Context
 from .prompts import DEFAULT_SYSTEM_PROMPT
+from .engine import Engine
 
 import asyncio
 
 
 class Chatbot:
-    def __init__(self, name: str, description: str, llm: LLM | None = None, skills: list[Flow] | None = None, tools: list[Tool] | None = None, system_prompt: str = DEFAULT_SYSTEM_PROMPT) -> None:
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        llm: LLM | None = None,
+        skills: list[Flow] | None = None,
+        tools: list[Tool] | None = None,
+        system_prompt: str = DEFAULT_SYSTEM_PROMPT,
+    ) -> None:
         self.name = name
         self.description = description
-        self.system_prompt = system_prompt.format(name=self.name, description=self.description)
+        self.system_prompt = system_prompt.format(
+            name=self.name, description=self.description
+        )
         self.llm = llm or LLM()
         self.skills: list[Flow] = skills or []
         self.tools: list[Tool] = tools or []
         self.messages: list[Message] = []
 
-    def skill(self, func: Callable[[Context], None]):
+    def skill(self, func: Callable[[Context, Engine], None]):
         """
         Decorator to register a method as a skill for the chatbot.
         """
@@ -48,13 +59,11 @@ class Chatbot:
     async def chat(self, msg: str) -> Message:
         self.messages.append(Message.user(msg))
 
-        context = Context(self.llm, self.messages)
+        context = Context(self.messages)
+        engine = Engine(self.llm, self.tools)
         flow = self._build_flow()
 
-        for tool in self.tools:
-            context.register(tool)
-
-        await flow.execute(context)
+        await flow.execute(context, engine)
 
         self.messages = context.messages
         return self.messages[-1]
@@ -89,6 +98,9 @@ class Chatbot:
             try:
                 msg = input_fn()
                 await self.chat(msg)
+                output_fn("\n\n")
+            except EOFError:
+                break
             finally:
                 self.llm.callback = original_callback
 

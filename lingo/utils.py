@@ -97,6 +97,7 @@ def tee(*functions):
     """
     Calls all functions with the same argunents.
     """
+
     def wrapper(*args, **kwargs):
         for fn in functions:
             fn(*args, **kwargs)

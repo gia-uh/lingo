@@ -6,6 +6,7 @@ import uuid
 from pydantic import BaseModel
 
 from .context import Context
+from .engine import Engine  # Import the new Engine
 from .llm import LLM, Message
 from .tools import Tool
 
@@ -20,13 +21,10 @@ class Node(abc.ABC):
     """
 
     @abc.abstractmethod
-    async def execute(self, context: Context) -> None:
+    async def execute(self, context: Context, engine: Engine) -> None:
         """
-        Executes the node's logic on the given mutable context.
-
-        This method should perform its action (e.g., add a message,
-        call the LLM, or run a tool) by using the methods
-        on the 'context' object.
+        Executes the node's logic on the given mutable context,
+        using the engine to perform LLM operations.
         """
         pass
 
@@ -40,7 +38,7 @@ class Append(Node):
     def __init__(self, msg: Message):
         self.msg = msg
 
-    async def execute(self, context: Context) -> None:
+    async def execute(self, context: Context, engine: Engine) -> None:
         context.append(self.msg)
 
 
@@ -50,7 +48,7 @@ class Prepend(Node):
     def __init__(self, msg: Message):
         self.msg = msg
 
-    async def execute(self, context: Context) -> None:
+    async def execute(self, context: Context, engine: Engine) -> None:
         context.prepend(self.msg)
 
 
@@ -63,8 +61,8 @@ class Reply(Node):
     def __init__(self, *instructions: str | Message):
         self.instructions = instructions
 
-    async def execute(self, context: Context) -> None:
-        response = await context.reply(*self.instructions)
+    async def execute(self, context: Context, engine: Engine) -> None:
+        response = await engine.reply(context, *self.instructions)
         context.append(response)
 
 
@@ -80,12 +78,12 @@ class Invoke(Node):
             raise ValueError("Invoke node must be initialized with at least one Tool.")
         self.tools = tools
 
-    async def execute(self, context: Context) -> None:
+    async def execute(self, context: Context, engine: Engine) -> None:
         # 1. Ask the LLM to select the best tool
-        selected_tool = await context.equip(*self.tools)
+        selected_tool = await engine.equip(context, *self.tools)
 
         # 2. Ask the LLM to generate args for and run the tool
-        tool_result = await context.invoke(selected_tool)
+        tool_result = await engine.invoke(context, selected_tool)
 
         # 3. Add the result to the context
         context.append(Message.tool(tool_result.model_dump()))
@@ -94,7 +92,7 @@ class Invoke(Node):
 class NoOp(Node):
     """A Leaf node that does nothing. Used for empty branches."""
 
-    async def execute(self, context: Context) -> None:
+    async def execute(self, context: Context, engine: Engine) -> None:
         pass
 
 
@@ -105,8 +103,8 @@ class Create(Node):
         self.model = model
         self.instructions = instructions
 
-    async def execute(self, context: Context) -> None:
-        response = await context.create(model=self.model, *self.instructions)
+    async def execute(self, context: Context, engine: Engine) -> None:
+        response = await engine.create(context, model=self.model, *self.instructions)
         context.append(Message.system(response))
 
 
@@ -121,8 +119,8 @@ class FunctionalNode(Node):
 
         self.func = func
 
-    async def execute(self, context: Context) -> None:
-        await self.func(context)
+    async def execute(self, context: Context, engine: Engine) -> None:
+        await self.func(context, engine)
 
 
 # --- "Composite" Nodes (Containers) ---
@@ -138,10 +136,10 @@ class Sequence(Node):
     def __init__(self, *nodes: Node):
         self.nodes: list[Node] = list(nodes)
 
-    async def execute(self, context: Context) -> None:
+    async def execute(self, context: Context, engine: Engine) -> None:
         """Executes each child node in order."""
         for node in self.nodes:
-            await node.execute(context)
+            await node.execute(context, engine)
 
     def then(self, node: Node) -> Self:
         self.nodes.append(node)
@@ -151,7 +149,7 @@ class Sequence(Node):
 class Decide(Node):
     """
     A Composite node that handles boolean (True/False) branching.
-    It calls context.decide() and then executes one of two
+    It calls engine.decide() and then executes one of two
     child nodes (which are typically Sequence or NoOp nodes).
     """
 
@@ -160,16 +158,16 @@ class Decide(Node):
         self.on_false = no
         self.instructions = instructions
 
-    async def execute(self, context: Context) -> None:
-        result = await context.decide(*self.instructions)
+    async def execute(self, context: Context, engine: Engine) -> None:
+        result = await engine.decide(context, *self.instructions)
         node_to_run = self.on_true if result else self.on_false
-        await node_to_run.execute(context)
+        await node_to_run.execute(context, engine)
 
 
 class Choose(Node):
     """
     A Composite node that handles multi-way branching.
-    It calls context.choose() and executes the matching
+    It calls engine.choose() and executes the matching
     child node from a dictionary.
     """
 
@@ -177,13 +175,13 @@ class Choose(Node):
         self.choices = choices
         self.instructions = instructions
 
-    async def execute(self, context: Context) -> None:
+    async def execute(self, context: Context, engine: Engine) -> None:
         option_keys = list(self.choices.keys())
-        selected_key = await context.choose(option_keys, *self.instructions)
+        selected_key = await engine.choose(context, option_keys, *self.instructions)
 
         node_to_run = self.choices.get(selected_key)
         if node_to_run:
-            await node_to_run.execute(context)
+            await node_to_run.execute(context, engine)
 
 
 class Route(Node):
@@ -198,7 +196,7 @@ class Route(Node):
 
         self.flows = list(flows)
 
-    async def execute(self, context: Context) -> None:
+    async def execute(self, context: Context, engine: Engine) -> None:
         # Build a description list for the LLM
         # We use the flow's name and description to guide the choice.
         descriptions = []
@@ -215,10 +213,10 @@ class Route(Node):
 
         # context.choose uses str(option) for the list of keys.
         # Since Flow.__str__ returns the name, the keys will be clean names.
-        selected_flow = await context.choose(list(self.flows), instruction)
+        selected_flow = await engine.choose(context, list(self.flows), instruction)
 
         # Execute the chosen Flow
-        await selected_flow.execute(context)
+        await selected_flow.execute(context, engine)
 
 
 # --- User-Facing Fluent API ---
@@ -237,11 +235,10 @@ class Flow(Sequence):
         self,
         name: str | None = None,
         description: str | None = None,
-        tools: list[Tool] | None = None,
     ):
+        super().__init__()  # Initialize the Sequence parent
         self.name = name or f"Flow-{str(uuid.uuid4())}"
         self.description = description or ""
-        self.tools = tools or []
 
     def __str__(self) -> str:
         return self.name
@@ -322,20 +319,22 @@ class Flow(Sequence):
         """
         return self.then(Create(model, prompt))
 
-    def custom(self, func: Callable[[Context], None]) -> "Flow":
+    def custom(self, func: Callable[[Context, Engine], None]) -> "Flow":
         return self.then(FunctionalNode(func))
 
     def route(self, *flows: "Flow") -> "Flow":
         return self.then(Route(*flows))
 
-    async def __call__(self, llm: LLM, messages: list[Message]) -> Context:
+    async def __call__(self, engine: Engine, messages: list[Message]) -> Context:
         """
         Executes the entire defined flow.
 
         This is the main entry point to run the pipeline. It creates
-        a new Context and passes it through every node in the flow.
+        a new Context and Engine, and passes them through every
+        node in the flow.
 
         Args:
+            llm: The Language Model instance to use.
             messages: The initial list of messages (e.g., the user's
                       first message).
 
@@ -343,21 +342,21 @@ class Flow(Sequence):
             The final, mutated Context object after all steps
             have been run.
         """
-        context = Context(llm, list(messages))
+        # Create the pure-state Context
+        context = Context(list(messages))
 
-        for tool in self.tools:
-            context.register(tool)
-
-        await self.execute(context)
+        # Execute the flow in the Engine
+        await self.execute(context, engine)
         return context
 
 
 # Utilities
 
 
-def flow(func: Callable[[Context], None]) -> Flow:
+def flow(func: Callable[[Context, Engine], None]) -> Flow:
     """
     A decorator that converts a function into a Flow instance.
+    The function must be a coroutine taking (Context, Engine).
     Use the function's docstring as the Flow's description.
     """
     return Flow(name=func.__name__, description=func.__doc__).custom(func)
