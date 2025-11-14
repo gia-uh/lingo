@@ -61,7 +61,7 @@ class LLM:
         api_key: str | None = None,
         base_url: str | None = None,
         on_token: Callable[[str], Any] | None = None,  # Simplified
-        on_create: Callable[[BaseModel], Any] | None = None, # Added
+        on_create: Callable[[BaseModel], Any] | None = None,  # Added
         **extra_kwargs,
     ):
         """
@@ -101,7 +101,7 @@ class LLM:
         api_messages = [msg.model_dump() for msg in messages]
 
         async for chunk in await self.client.chat.completions.create(
-            model=self.model, # type: ignore
+            model=self.model,  # type: ignore
             messages=api_messages,  # type: ignore
             stream=True,
             **(self.extra_kwargs | kwargs),
@@ -136,7 +136,7 @@ class LLM:
 
         # Use the non-streaming, async `parse` method as requested
         response = await self.client.chat.completions.parse(
-            model=self.model, # type: ignore
+            model=self.model,  # type: ignore
             messages=api_messages,  # type: ignore
             response_format=model,
             **(self.extra_kwargs | kwargs),

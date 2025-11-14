@@ -1,6 +1,8 @@
 from lingo import Lingo, Context, Engine, Message
 import dotenv
 
+from lingo.cli import loop
+
 
 dotenv.load_dotenv()
 
@@ -28,6 +30,7 @@ account = Account(1000)
 bot = Lingo(
     name="Banker",
     description="A helpful assistant that can execute bank transactions and reply with the account information.",
+    verbose=True,
 )
 
 
@@ -83,4 +86,4 @@ async def withdraw(ammount: int) -> dict:
         return dict(error="Insufficient funds.", balance=account.balance)
 
 
-bot.loop()
+loop(bot)

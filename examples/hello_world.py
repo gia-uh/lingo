@@ -1,4 +1,6 @@
 from lingo import Lingo
+from lingo.cli import loop
+
 import dotenv
 
 # Load MODEL, BASE_URL, and API_KEY from .env file
@@ -9,4 +11,4 @@ dotenv.load_dotenv()
 bot = Lingo()
 
 # Run the bot in a CLI loop
-bot.loop()
+loop(bot)

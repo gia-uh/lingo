@@ -7,7 +7,7 @@ layer that operates on the pure-state "Context" objects.
 
 import json
 from pydantic import BaseModel, create_model
-from typing import Any, Type
+from typing import Any, Literal, Type
 from enum import Enum
 
 from .llm import LLM, Message
@@ -78,7 +78,7 @@ class Engine:
         return await self._llm.create(model, call_messages)
 
     # --- Internal helper for CoT models ---
-    def _create_cot_model(self, name: str, result_cls: type | Enum) -> type[BaseModel]:
+    def _create_cot_model(self, name: str, result_cls) -> type[BaseModel]:
         """Creates a dynamic Pydantic model for Chain-of-Thought reasoning."""
         return create_model(name, reasoning=(str, ...), result=(result_cls, ...))
 
@@ -90,17 +90,19 @@ class Engine:
         """
         # Create a mapping of string representations to original objects
         mapping = {str(option): option for option in options}
-        enum_type = Enum("Choices", {c: c for c in mapping.keys()})
+        enum_type = Literal[*mapping.keys()]
         model_cls = self._create_cot_model("Choose", enum_type)
 
         prompt = DEFAULT_CHOOSE_PROMPT.format(
             options="\n".join([f"- {opt}" for opt in mapping.keys()]),
             format=model_cls.model_json_schema(),
         )
-        call_messages = self._expand_content(context, Message.system(prompt))
+        call_messages = self._expand_content(
+            context, *instructions, Message.system(prompt)
+        )
 
         response = await self.create(context, model_cls, *call_messages)
-        return mapping[response.result.value]  # type: ignore
+        return mapping[response.result]  # type: ignore
 
     async def decide(self, context: Context, *instructions: str | Message) -> bool:
         """
@@ -130,7 +132,8 @@ class Engine:
 
         tool_map = {tool.name: tool for tool in _tools}
 
-        enum_type = Enum("ToolChoices", {t: t for t in tool_map.keys()})
+        # enum_type = Enum("ToolChoices", {t: t for t in tool_map.keys()})
+        enum_type = Literal[*tool_map.keys()]
         model_cls = self._create_cot_model("Equip", enum_type)
 
         prompt = DEFAULT_EQUIP_PROMPT.format(
@@ -140,7 +143,7 @@ class Engine:
         call_messages = self._expand_content(context, Message.system(prompt))
 
         response = await self.create(context, model_cls, *call_messages)
-        return tool_map[response.result.value]  # type: ignore
+        return tool_map[response.result]  # type: ignore
 
     async def invoke(
         self, context: Context, tool: Tool, *instructions: str | Message, **kwargs
@@ -157,9 +160,7 @@ class Engine:
             # --- Fix for Issue #4 ---
             # 1. Create a Pydantic model for the *entire* set of parameters
             param_fields = {name: (p_type, ...) for name, p_type in parameters.items()}
-            model_cls: type[BaseModel] = create_model(
-                f"{tool.name.capitalize()}Params", **param_fields
-            )
+            model_cls: type[BaseModel] = create_model(tool.name, **param_fields)
 
             # 2. Ask the LLM to fill in this *full* model.
             prompt_str = DEFAULT_INVOKE_PROMPT.format(
