@@ -1,7 +1,7 @@
 ---
 number: 3
 title: "Structured generation (`.create`) lacks streaming, leading to poor UX"
-state: open
+state: closed
 labels:
 ---
 
