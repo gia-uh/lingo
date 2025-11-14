@@ -98,7 +98,7 @@ async def test_llm_chat_with_callback(mock_client):
     def sync_callback(chunk):
         callback_chunks.append(chunk)
 
-    llm = LLM(model="gpt-4", callback=sync_callback)
+    llm = LLM(model="gpt-4", on_token=sync_callback)
 
     await llm.chat([Message.user("Count")])
 
@@ -117,7 +117,7 @@ async def test_llm_create_pydantic(mock_client):
     mock_response.choices[0].message.parsed = expected_result
 
     # Set the return value for the 'parse' method
-    mock_client.beta.chat.completions.parse = AsyncMock(return_value=mock_response)
+    mock_client.chat.completions.parse = AsyncMock(return_value=mock_response)
 
     # 2. Call the method
     messages = [Message.user("Create the object")]
@@ -128,7 +128,7 @@ async def test_llm_create_pydantic(mock_client):
     assert isinstance(result, SampleModel)
 
     # 4. Verify the mock was called correctly
-    mock_client.beta.chat.completions.parse.assert_called_once_with(
+    mock_client.chat.completions.parse.assert_called_once_with(
         model="gpt-4",
         messages=[{"role": "user", "content": "Create the object"}],
         response_format=SampleModel,
