@@ -43,6 +43,7 @@ This is the fastest way to get a `lingo` assistant running using the high-level 
 
 ```python
 from lingo import Lingo
+from lingo.cli import loop
 import dotenv
 
 # Load .env variables (API_KEY, MODEL)
@@ -55,12 +56,12 @@ bot = Lingo(
 )
 
 # 2. Run the chat loop in your terminal
-bot.loop()
+loop(bot)
 ```
 
-That's it! You now have a fully interactive chatbot.
+That's it\! You now have a fully interactive chatbot.
 
-```
+```bash
 Name: Assistant
 Description: A simple, helpful chatbot.
 
@@ -68,6 +69,7 @@ Description: A simple, helpful chatbot.
 
 >>> Hello!
 Hello! How can I help you today?
+
 >>>
 ```
 
@@ -75,7 +77,7 @@ Hello! How can I help you today?
 
 `lingo` gives you the flexibility to choose the right level of abstraction.
 
-### 1. High-Level API: The `Lingo` Class
+### 1\. High-Level API: The `Lingo` Class
 
 This is the "batteries-included" approach. The `Lingo` class manages the `LLM`, `Engine`, and `Flow` for you. You just define **skills** (reusable flows) and **tools**, and `lingo` handles routing the conversation to the correct one.
 
@@ -83,6 +85,7 @@ This is the recommended starting point for most applications.
 
 ```python
 from lingo import Lingo, Context, Engine
+from lingo.cli import loop
 import dotenv
 
 dotenv.load_dotenv()
@@ -101,16 +104,16 @@ async def greet(context: Context, engine: Engine):
         "You are a friendly greeter. Reply with a warm welcome."
     )
 
-bot.loop()
+loop(bot)
 ```
 
-### 2. Mid-Level API: The `Flow` Class
+### 2\. Mid-Level API: The `Flow` Class
 
 The `Flow` class provides a fluent, chainable interface for declaratively building reusable workflows. You define the *steps* of the conversation, and `lingo` handles the execution. This is perfect for defining complex, stateful logic.
 
 ```python
 import asyncio
-from lingo import Lingo, Flow, Message, Engine
+from lingo import Lingo, Flow, Message, Engine, LLM
 from lingo.tools import tool
 
 llm = LLM(model="gpt-4o")
@@ -151,7 +154,7 @@ async def main():
 asyncio.run(main())
 ```
 
-### 3. Low-Level API: `LLM`, `Engine`, & `Context`
+### 3\. Low-Level API: `LLM`, `Engine`, & `Context`
 
 For maximum control, you can use the imperative API.
 
@@ -192,7 +195,7 @@ asyncio.run(main())
 
 ## Contributing
 
-Contributions are welcome! `lingo` is an open-source project, and we'd love your help in making it better. Please feel free to open an issue or submit a pull request.
+Contributions are welcome\! `lingo` is an open-source project, and we'd love your help in making it better. Please feel free to open an issue or submit a pull request.
 
 ## License
 
