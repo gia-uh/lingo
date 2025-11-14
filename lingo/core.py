@@ -35,20 +35,6 @@ class Lingo:
         self.messages: list[Message] = []
         self.verbose = verbose
 
-        if self.verbose:
-            def _verbose_on_create(model: BaseModel):
-                """Callback to pretty-print parsed Pydantic models."""
-                print("\n------- [Thinking] -------")
-                print(model.model_dump_json(indent=2))
-                print("--------------------------\n")
-
-            original_on_create = self.llm.on_create
-            self.llm.on_create = (
-                tee(original_on_create, _verbose_on_create)
-                if original_on_create
-                else _verbose_on_create
-            )
-
     def skill(self, func: Callable[[Context, Engine], Coroutine]):
         """
         Decorator to register a method as a skill for the chatbot.
@@ -109,13 +95,26 @@ class Lingo:
         cli_token_handler = output_fn
 
         original_on_token = self.llm.on_token
+        original_on_create = self.llm.on_create
 
-        if original_on_token:
-            # Tee the user's callback with our CLI printer
-            self.llm.on_token = tee(cli_token_handler, original_on_token)
-        else:
-            # Just use the CLI printer
-            self.llm.on_token = cli_token_handler
+        self.llm.on_token = (
+            tee(cli_token_handler, original_on_token)
+            if original_on_token
+            else cli_token_handler
+        )
+
+        def _verbose_on_create(model: BaseModel):
+            """Callback to pretty-print parsed Pydantic models."""
+            output_fn("\n------- [Thinking] -------")
+            output_fn(model.model_dump_json(indent=2))
+            output_fn("--------------------------\n")
+
+        if self.verbose:
+            self.llm.on_create = (
+                tee(original_on_create, _verbose_on_create)
+                if original_on_create
+                else _verbose_on_create
+            )
 
         try:
             while True:
