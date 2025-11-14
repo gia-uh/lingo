@@ -1,9 +1,10 @@
 from typing import Callable, Coroutine
+from pydantic import BaseModel
 
 from lingo.utils import tee
 
 from .flow import Flow, flow
-from .llm import LLM, Message, StreamType  # <-- Import StreamType
+from .llm import LLM, Message  # StreamType is removed
 from .tools import Tool, tool
 from .context import Context
 from .prompts import DEFAULT_SYSTEM_PROMPT
@@ -21,6 +22,7 @@ class Lingo:
         skills: list[Flow] | None = None,
         tools: list[Tool] | None = None,
         system_prompt: str = DEFAULT_SYSTEM_PROMPT,
+        verbose: bool = False,
     ) -> None:
         self.name = name
         self.description = description
@@ -31,6 +33,21 @@ class Lingo:
         self.skills: list[Flow] = skills or []
         self.tools: list[Tool] = tools or []
         self.messages: list[Message] = []
+        self.verbose = verbose
+
+        if self.verbose:
+            def _verbose_on_create(model: BaseModel):
+                """Callback to pretty-print parsed Pydantic models."""
+                print("\n------- [Thinking] -------")
+                print(model.model_dump_json(indent=2))
+                print("--------------------------\n")
+
+            original_on_create = self.llm.on_create
+            self.llm.on_create = (
+                tee(original_on_create, _verbose_on_create)
+                if original_on_create
+                else _verbose_on_create
+            )
 
     def skill(self, func: Callable[[Context, Engine], Coroutine]):
         """
@@ -88,36 +105,28 @@ class Lingo:
             # Default output_fn just takes a string
             output_fn = lambda token: print(token, end="", flush=True)
 
-        # This adapter bridges the new (str, StreamType) callback
-        # to the old (str) output_fn.
-        def cli_token_handler(token: str, stream_type: StreamType):
-            # Only print final "response" tokens to the CLI
-            if stream_type == StreamType.UNSTRUCTURED:
-                output_fn(token)
-            # By default, THINKING tokens are ignored by the CLI runner
+        # The handler is simplified, as it only receives strings
+        cli_token_handler = output_fn
 
-        original_callback = self.llm.callback
+        original_on_token = self.llm.on_token
 
-        if original_callback:
-            # User has a custom callback. Tee it with our CLI printer.
-            # Both will receive (token, stream_type)
-            self.llm.callback = tee(cli_token_handler, original_callback)
+        if original_on_token:
+            # Tee the user's callback with our CLI printer
+            self.llm.on_token = tee(cli_token_handler, original_on_token)
         else:
-            # User has no custom callback. Just use our CLI printer.
-            self.llm.callback = cli_token_handler
+            # Just use the CLI printer
+            self.llm.on_token = cli_token_handler
 
         try:
             while True:
                 msg = input_fn()
                 await self.chat(msg)
-                # Our handler already printed the tokens.
-                # We just add the final newlines.
                 output_fn("\n\n")
         except EOFError:
             pass
         finally:
-            # Restore the original callback
-            self.llm.callback = original_callback
+            # Restore the original on_token callback
+            self.llm.on_token = original_on_token
 
     def loop(self, input_fn=None, output_fn=None):
         """
@@ -128,5 +137,9 @@ class Lingo:
         """
         print("Name:", self.name)
         print("Description:", self.description)
+
+        if self.verbose:
+            print("Mode: Verbose")
+
         print("\n[Press Ctrl+D to exit]\n")
         asyncio.run(self.run(input_fn, output_fn))
