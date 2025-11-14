@@ -2,8 +2,16 @@ import os
 import inspect
 import functools
 from pydantic import BaseModel
-from typing import Any, Callable, Literal
+from typing import Any, Callable, Literal, Type
 import openai
+from enum import Enum, auto  # <-- Add this import
+
+
+class StreamType(Enum):
+    """Indicates the type of content being streamed from the LLM."""
+
+    STRUCTURED = auto()  # Structured data (JSON) for internal use
+    UNSTRUCTURED = auto()  # Unstructured text for the final reply
 
 
 class Message(BaseModel):
@@ -60,7 +68,8 @@ class LLM:
         model: str | None = None,
         api_key: str | None = None,
         base_url: str | None = None,
-        callback: Callable[[str], Any] | None = None,
+        # vvv Update callback signature vvv
+        callback: Callable[[str, StreamType], Any] | None = None,
         **extra_kwargs,
     ):
         """
@@ -70,7 +79,8 @@ class LLM:
             model: The name of the model to use (e.g., "gpt-4").
             api_key: The API key. Defaults to os.getenv("API_KEY").
             base_url: The API base URL. Defaults to os.getenv("BASE_URL").
-            callback: A sync/async function called with each token chunk.
+            callback: A sync/async function called with each token chunk
+                      and its StreamType.
             **extra_kwargs: Additional arguments for the client (e.g., temperature).
         """
         self.callback = callback
@@ -82,6 +92,11 @@ class LLM:
         if api_key is None:
             api_key = os.getenv("API_KEY")
 
+        if model is None:
+            raise ValueError(
+                "Model must be provided or set in the MODEL environment variable."
+            )
+
         self.model = model
         self.client = openai.AsyncOpenAI(base_url=base_url, api_key=api_key)
         self.extra_kwargs = extra_kwargs
@@ -89,7 +104,8 @@ class LLM:
     async def chat(self, messages: list["Message"], **kwargs) -> "Message":
         """
         Sends a message list and returns the full assistant Message.
-        If a callback is set, it will be triggered for each token.
+        If a callback is set, it will be triggered for each token
+        with StreamType.RESPONSE.
         """
         result_chunks = []
 
@@ -108,35 +124,61 @@ class LLM:
 
             if self.callback:
                 # Handle both sync and async callbacks
+                # vvv Pass StreamType.RESPONSE vvv
                 if inspect.iscoroutinefunction(self.callback):
-                    await self.callback(content)
+                    await self.callback(content, StreamType.UNSTRUCTURED)
                 else:
-                    self.callback(content)
+                    self.callback(content, StreamType.UNSTRUCTURED)
 
             result_chunks.append(content)
 
         return Message.assistant("".join(result_chunks))
 
     async def create[T: BaseModel](
-        self, model: type[T], messages: list["Message"], **kwargs
+        self, model: Type[T], messages: list["Message"], **kwargs
     ) -> T:
         """
         Sends a message list and forces the LLM to respond
         with a JSON object matching the Pydantic model.
+
+        This method is streaming-capable and will fire the
+        callback with StreamType.THINKING.
         """
+        result_chunks = []
         # Convert Message objects to dictionaries for the API
         api_messages = [msg.model_dump() for msg in messages]
 
-        response = await self.client.beta.chat.completions.parse(
+        # Use the standard streaming endpoint with JSON mode
+        async for chunk in await self.client.chat.completions.create(
             model=self.model,
             messages=api_messages,  # type: ignore
-            response_format=model,
+            response_format=dict(type="json_schema", json_schema=model.model_json_schema()),  # type: ignore
+            stream=True,
             **(self.extra_kwargs | kwargs),
-        )
-        result = response.choices[0].message.parsed
-        if result is None:
-            raise ValueError("Failed to parse the response from the model.")
-        return result
+        ):  # type: ignore
+            content = chunk.choices[0].delta.content
+            if content is None:
+                continue
+
+            if self.callback:
+                # Handle both sync and async callbacks
+                if inspect.iscoroutinefunction(self.callback):
+                    await self.callback(content, StreamType.STRUCTURED)
+                else:
+                    self.callback(content, StreamType.STRUCTURED)
+
+            result_chunks.append(content)
+
+        full_json_string = "".join(result_chunks)
+
+        try:
+            # Parse the aggregated JSON string
+            return model.model_validate_json(full_json_string)
+        except Exception as e:
+            # Handle parsing errors
+            raise ValueError(
+                f"Failed to parse LLM JSON response: {e}\nResponse: {full_json_string}"
+            )
 
     def wrap(self, target: Callable) -> Callable:
         """

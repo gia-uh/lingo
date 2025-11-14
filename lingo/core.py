@@ -3,7 +3,7 @@ from typing import Callable, Coroutine
 from lingo.utils import tee
 
 from .flow import Flow, flow
-from .llm import LLM, Message
+from .llm import LLM, Message, StreamType  # <-- Import StreamType
 from .tools import Tool, tool
 from .context import Context
 from .prompts import DEFAULT_SYSTEM_PROMPT
@@ -78,30 +78,45 @@ class Lingo:
                 returns the user message.
                 Defaults to Python's builtin input().
             output_fn: If provided, should be a callback to stream
-                the LLM chat response.
+                the LLM chat response tokens (as strings).
                 Defaults to print().
         """
         if input_fn is None:
             input_fn = lambda: input(">>> ")
 
         if output_fn is None:
+            # Default output_fn just takes a string
             output_fn = lambda token: print(token, end="", flush=True)
+
+        # This adapter bridges the new (str, StreamType) callback
+        # to the old (str) output_fn.
+        def cli_token_handler(token: str, stream_type: StreamType):
+            # Only print final "response" tokens to the CLI
+            if stream_type == StreamType.UNSTRUCTURED:
+                output_fn(token)
+            # By default, THINKING tokens are ignored by the CLI runner
 
         original_callback = self.llm.callback
 
         if original_callback:
-            self.llm.callback = tee(output_fn, self.llm.callback)
+            # User has a custom callback. Tee it with our CLI printer.
+            # Both will receive (token, stream_type)
+            self.llm.callback = tee(cli_token_handler, original_callback)
         else:
-            self.llm.callback = output_fn
+            # User has no custom callback. Just use our CLI printer.
+            self.llm.callback = cli_token_handler
 
         try:
             while True:
                 msg = input_fn()
                 await self.chat(msg)
+                # Our handler already printed the tokens.
+                # We just add the final newlines.
                 output_fn("\n\n")
         except EOFError:
             pass
         finally:
+            # Restore the original callback
             self.llm.callback = original_callback
 
     def loop(self, input_fn=None, output_fn=None):
