@@ -73,7 +73,7 @@ class Lingo:
 
         await flow.execute(context, engine)
 
-        for m in context.messages[len(self.messages):]:
+        for m in context.messages[len(self.messages) :]:
             self.messages.append(m)
 
         return self.messages[-1]
