@@ -1,0 +1,30 @@
+# Minimal example flow for testing
+name: "ExampleFlow"
+description: "A simple example flow"
+nodes:
+  - type: "append"
+    message:
+      role: "system"
+      content:
+        type: "string"
+        value: "You are a helpful assistant"
+  
+  - type: "reply"
+    instructions:
+      - type: "string"
+        value: "How can I help you today?"
+  
+  - type: "decide"
+    on_true:
+      type: "reply"
+      instructions:
+        - type: "string"
+          value: "Great, I can help with that"
+    on_false:
+      type: "reply"
+      instructions:
+        - type: "string"
+          value: "Maybe I can help with something else"
+    instructions:
+      - type: "string"
+        value: "Do you need specific help?"
