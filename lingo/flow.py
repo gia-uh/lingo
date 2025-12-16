@@ -151,6 +151,12 @@ class Decide(Node):
     A Composite node that handles boolean (True/False) branching.
     It calls engine.decide() and then executes one of two
     child nodes (which are typically Sequence or NoOp nodes).
+
+    To ensure atomicity, the selected branch is executed on a cloned
+    copy of the current context. If the branch completes successfully,
+    its resulting message history replaces the parent context's messages.
+    If the branch raises an exception, the original context remains
+    unchanged, preserving conversation integrity.
     """
 
     def __init__(self, yes: Node, no: Node, *instructions: str | Message):
@@ -161,7 +167,13 @@ class Decide(Node):
     async def execute(self, context: Context, engine: Engine) -> None:
         result = await engine.decide(context, *self.instructions)
         node_to_run = self.on_true if result else self.on_false
-        await node_to_run.execute(context, engine)
+        isolated_context = context.clone()
+        try:
+            await node_to_run.execute(isolated_context, engine)
+            context._messages = isolated_context.messages
+        except Exception:
+            # On failure, discard the isolated context.
+            raise
 
 
 class Choose(Node):
@@ -169,6 +181,12 @@ class Choose(Node):
     A Composite node that handles multi-way branching.
     It calls engine.choose() and executes the matching
     child node from a dictionary.
+
+    To ensure atomicity, the selected branch is executed on a cloned
+    copy of the current context. If the branch completes successfully,
+    its resulting message history replaces the parent context's messages.
+    If the branch raises an exception, the original context remains
+    unchanged, preserving conversation integrity.
     """
 
     def __init__(self, choices: dict[str, Node], *instructions: str | Message):
@@ -181,7 +199,13 @@ class Choose(Node):
 
         node_to_run = self.choices.get(selected_key)
         if node_to_run:
-            await node_to_run.execute(context, engine)
+            isolated_context = context.clone()
+            try:
+                await node_to_run.execute(isolated_context, engine)
+                context._messages = isolated_context.messages
+            except Exception:
+                # On failure, discard the isolated context.
+                raise
 
 
 class Route(Node):
