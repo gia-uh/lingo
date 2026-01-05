@@ -18,42 +18,62 @@ import openai
 
 # --- Multimodal Content Models ---
 
+
 class Content(BaseModel):
     """Base class for all message content types."""
+
     type: str
+
 
 class TextContent(Content):
     """Standard text content."""
+
     type: Literal["text"] = "text"
     text: str
 
+
 class ImageContent(Content):
     """Image content supporting both URLs and base64 data."""
+
     type: Literal["image_url"] = "image_url"
-    image_url: dict[str, str] = Field(description="Dictionary containing 'url' (can be data:image/...)")
+    image_url: dict[str, str] = Field(
+        description="Dictionary containing 'url' (can be data:image/...)"
+    )
+
 
 class AudioContent(Content):
     """Audio content for multimodal models."""
+
     type: Literal["input_audio"] = "input_audio"
-    input_audio: dict[str, str] = Field(description="Dictionary containing 'data' (base64) and 'format'")
+    input_audio: dict[str, str] = Field(
+        description="Dictionary containing 'data' (base64) and 'format'"
+    )
+
 
 class VideoContent(Content):
     """Video content (supported by some OpenRouter/OpenAI models)."""
+
     type: Literal["video_url"] = "video_url"
     video_url: dict[str, str] = Field(description="Dictionary containing 'url'")
 
+
 class FileContent(Content):
     """Generic file content."""
+
     type: Literal["file_url"] = "file_url"
     file_url: dict[str, str] = Field(description="Dictionary containing 'url'")
 
 
 # --- Message Model ---
 
+
 class Message(BaseModel):
     """A Pydantic model for a single chat message."""
+
     role: Literal["user", "system", "assistant", "tool"]
-    content: Union[TextContent, ImageContent, AudioContent, VideoContent, FileContent, str]
+    content: Union[
+        TextContent, ImageContent, AudioContent, VideoContent, FileContent, str
+    ]
 
     @classmethod
     def system(cls, content: str) -> "Message":
@@ -82,9 +102,11 @@ class Message(BaseModel):
         mime, _ = mimetypes.guess_type(path)
         mime = mime or "image/jpeg"
 
-        return cls.user(ImageContent(
-            image_url={"url": f"data:{mime};base64,{data}", "detail": detail}
-        ))
+        return cls.user(
+            ImageContent(
+                image_url={"url": f"data:{mime};base64,{data}", "detail": detail}
+            )
+        )
 
     @classmethod
     def online_image(cls, url: str, detail: str = "auto") -> "Message":

@@ -2,6 +2,7 @@ import os
 from typing import overload, Any
 import openai
 
+
 class Embedder:
     """
     A client for generating text embeddings using an OpenAI-compatible API.
@@ -67,7 +68,10 @@ class Embedder:
             item_tokens = self._estimate_tokens(item)
 
             # Check if adding this item exceeds the batch limit
-            if current_tokens + item_tokens > self.max_tokens_per_batch and current_batch:
+            if (
+                current_tokens + item_tokens > self.max_tokens_per_batch
+                and current_batch
+            ):
                 batch_response = await self.client.embeddings.create(
                     model=self.model, input=current_batch, **self.extra_kwargs
                 )
