@@ -1,6 +1,6 @@
 [project]
 name = "lingo-ai"
-version = "0.4.0"
+version = "0.5.0"
 description = "A minimal, async-native, and unopinionated toolkit for modern LLM applications."
 readme = "README.md"
 authors = [
