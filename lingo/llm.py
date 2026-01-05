@@ -6,45 +6,131 @@ from typing import Any, Callable, Literal
 import openai
 
 
+import os
+import inspect
+import functools
+import base64
+import mimetypes
+from typing import Any, Callable, Literal, Union, Self
+from pydantic import BaseModel, Field
+import openai
+
+
+# --- Multimodal Content Models ---
+
+class Content(BaseModel):
+    """Base class for all message content types."""
+    type: str
+
+class TextContent(Content):
+    """Standard text content."""
+    type: Literal["text"] = "text"
+    text: str
+
+class ImageContent(Content):
+    """Image content supporting both URLs and base64 data."""
+    type: Literal["image_url"] = "image_url"
+    image_url: dict[str, str] = Field(description="Dictionary containing 'url' (can be data:image/...)")
+
+class AudioContent(Content):
+    """Audio content for multimodal models."""
+    type: Literal["input_audio"] = "input_audio"
+    input_audio: dict[str, str] = Field(description="Dictionary containing 'data' (base64) and 'format'")
+
+class VideoContent(Content):
+    """Video content (supported by some OpenRouter/OpenAI models)."""
+    type: Literal["video_url"] = "video_url"
+    video_url: dict[str, str] = Field(description="Dictionary containing 'url'")
+
+class FileContent(Content):
+    """Generic file content."""
+    type: Literal["file_url"] = "file_url"
+    file_url: dict[str, str] = Field(description="Dictionary containing 'url'")
+
+
+# --- Message Model ---
+
 class Message(BaseModel):
     """A Pydantic model for a single chat message."""
-
     role: Literal["user", "system", "assistant", "tool"]
-    content: Any
+    content: Union[TextContent, ImageContent, AudioContent, VideoContent, FileContent, str]
 
     @classmethod
-    def system(cls, content: Any) -> "Message":
-        """Factory for a system message."""
+    def system(cls, content: str) -> "Message":
         return cls(role="system", content=content)
 
     @classmethod
-    def user(cls, content: Any) -> "Message":
-        """Factory for a user message."""
+    def user(cls, content: Union[Content, str]) -> "Message":
         return cls(role="user", content=content)
 
     @classmethod
-    def assistant(cls, content: Any) -> "Message":
-        """Factory for an assistant message."""
+    def assistant(cls, content: str) -> "Message":
         return cls(role="assistant", content=content)
 
     @classmethod
     def tool(cls, content: Any) -> "Message":
-        """Factory for a tool message."""
         return cls(role="tool", content=content)
+
+    # --- Multimodal Helper Methods ---
+
+    @classmethod
+    def local_image(cls, path: str, detail: str = "auto") -> "Message":
+        """Loads a local image and encodes it as base64."""
+        with open(path, "rb") as f:
+            data = base64.b64encode(f.read()).decode("utf-8")
+
+        mime, _ = mimetypes.guess_type(path)
+        mime = mime or "image/jpeg"
+
+        return cls.user(ImageContent(
+            image_url={"url": f"data:{mime};base64,{data}", "detail": detail}
+        ))
+
+    @classmethod
+    def online_image(cls, url: str, detail: str = "auto") -> "Message":
+        """Creates a message with an online image URL."""
+        return cls.user(ImageContent(image_url={"url": url, "detail": detail}))
+
+    @classmethod
+    def local_audio(cls, path: str, format: str | None = None) -> "Message":
+        """Loads a local audio file and encodes it as base64."""
+        with open(path, "rb") as f:
+            data = base64.b64encode(f.read()).decode("utf-8")
+
+        if not format:
+            # Try to get format from extension (e.g., .mp3 -> mp3)
+            _, ext = os.path.splitext(path)
+            format = ext.strip(".").lower() or "mp3"
+
+        return cls.user(AudioContent(input_audio={"data": data, "format": format}))
+
+    @classmethod
+    def online_video(cls, url: str) -> "Message":
+        """Creates a message with an online video URL."""
+        return cls.user(VideoContent(video_url={"url": url}))
 
     def model_dump(self, *args, **kwargs) -> dict[str, Any]:
         """
-        Custom model dump to handle Pydantic models in 'content'.
+        Custom model dump to handle structured Content and Pydantic models.
         """
-        # Get the standard model dump
         dump = super().model_dump(*args, **kwargs)
+        content = self.content
 
-        # If content is a Pydantic model, serialize it to JSON string
-        if isinstance(self.content, BaseModel):
-            dump["content"] = self.content.model_dump_json()
-        else:
-            # Otherwise, just convert content to string
-            dump["content"] = str(self.content)
+        # 1. Handle raw strings (Standard Text)
+        if isinstance(content, str):
+            dump["content"] = content
+
+        # 2. Handle structured Content objects (Images, Audio, etc.)
+        elif isinstance(content, Content):
+            # We dump the Content object as a dictionary
+            # OpenAI/OpenRouter expect a single-item list for multimodal content parts
+            # or the dict directly depending on the specific API version.
+            # To follow the most common multimodal schema:
+            dump["content"] = [content.model_dump()]
+
+        # 3. Handle legacy Pydantic model serialization (for structured output responses)
+        elif isinstance(content, BaseModel):
+            dump["content"] = content.model_dump_json()
 
         return dump
 
