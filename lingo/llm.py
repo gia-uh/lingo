@@ -8,6 +8,13 @@ from pydantic import BaseModel, Field
 import openai
 
 
+class Usage(BaseModel):
+    """Token usage statistics for an LLM interaction."""
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+
+
 # --- Multimodal Content Models ---
 
 
@@ -72,6 +79,7 @@ class Message(BaseModel):
     content: Union[
         TextContent, ImageContent, AudioContent, VideoContent, FileContent, str
     ]
+    usage: Usage | None = None
 
     @classmethod
     def system(cls, content: str) -> "Message":
@@ -82,8 +90,8 @@ class Message(BaseModel):
         return cls(role="user", content=content)
 
     @classmethod
-    def assistant(cls, content: str) -> "Message":
-        return cls(role="assistant", content=content)
+    def assistant(cls, content: str, usage: Usage | None = None) -> "Message":
+        return cls(role="assistant", content=content, usage=usage)
 
     @classmethod
     def tool(cls, content: Any) -> "Message":
@@ -166,8 +174,9 @@ class LLM:
         model: str | None = None,
         api_key: str | None = None,
         base_url: str | None = None,
-        on_token: Callable[[str], Any] | None = None,  # Simplified
-        on_create: Callable[[BaseModel], Any] | None = None,  # Added
+        on_token: Callable[[str], Any] | None = None,
+        on_create: Callable[[BaseModel], Any] | None = None,
+        on_message: Callable[[Message], Any] | None = None,
         **extra_kwargs,
     ):
         """
@@ -180,10 +189,13 @@ class LLM:
             on_token: A sync/async function called with each chat token.
             on_create: A sync/async function called with the fully parsed
                        Pydantic model from a `create` call.
+            on_message: A sync/async function called with every message (chat or create)
+                        useful mostly for login usage.
             **extra_kwargs: Additional arguments for the client (e.g., temperature).
         """
         self.on_token = on_token
         self.on_create = on_create
+        self.on_message = on_message
 
         if model is None:
             model = os.getenv("MODEL")
@@ -202,7 +214,7 @@ class LLM:
         If an on_token callback is set, it will be triggered for each token.
         """
         result_chunks = []
-
+        usage: Usage | None = None
         # Convert Message objects to dictionaries for the API
         api_messages = [msg.model_dump() for msg in messages]
 
@@ -210,8 +222,16 @@ class LLM:
             model=self.model,  # type: ignore
             messages=api_messages,  # type: ignore
             stream=True,
+            stream_options=dict(include_usage=True), # type: ignore
             **(self.extra_kwargs | kwargs),
         ):
+            if chunk.usage:
+                usage = Usage(
+                    prompt_tokens=chunk.usage.prompt_tokens,
+                    completion_tokens=chunk.usage.completion_tokens,
+                    total_tokens=chunk.usage.total_tokens
+                )
+
             content = chunk.choices[0].delta.content
             if content is None:
                 continue
@@ -225,7 +245,15 @@ class LLM:
 
             result_chunks.append(content)
 
-        return Message.assistant("".join(result_chunks))
+        result = Message.assistant("".join(result_chunks), usage=usage)
+
+        if self.on_message:
+            if inspect.iscoroutinefunction(self.on_message):
+                await self.on_message(result)
+            else:
+                self.on_message(result)
+
+        return result
 
     async def create[T: BaseModel](
         self, model: type[T], messages: list["Message"], **kwargs
@@ -251,12 +279,30 @@ class LLM:
         if result is None:
             raise ValueError("Failed to parse the response from the model.")
 
+        # Capture usage data
+        if response.usage:
+            usage = Usage(
+                prompt_tokens=response.usage.prompt_tokens,
+                completion_tokens=response.usage.completion_tokens,
+                total_tokens=response.usage.total_tokens
+            )
+        else:
+            usage = None
+
         # Fire the on_create callback
         if self.on_create:
             if inspect.iscoroutinefunction(self.on_create):
                 await self.on_create(result)
             else:
                 self.on_create(result)
+
+        msg = Message.assistant(result.model_dump_json(), usage=usage)
+
+        if self.on_message:
+            if inspect.iscoroutinefunction(self.on_message):
+                await self.on_message(msg)
+            else:
+                self.on_message(msg)
 
         return result
 
