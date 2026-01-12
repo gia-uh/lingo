@@ -1,7 +1,7 @@
 ---
 number: 8
 title: "feat(flow): make Decide and Choose execution atomic"
-state: open
+state: closed
 labels:
 ---
 

@@ -1,7 +1,7 @@
 ---
 number: 9
 title: "Feat: Add context checkpointing and rollback for advanced flow control"
-state: open
+state: closed
 labels:
 ---
 
@@ -30,9 +30,9 @@ The implementation is minimal:
 
 ### Key Benefits
 
-- Keeps conversation history logically consistent with only the actually followed path  
-- Complements `clone()` by enabling active, iterative editing (vs. passive isolation)  
-- Remains unopinionated—developers choose when and how to use it  
+- Keeps conversation history logically consistent with only the actually followed path
+- Complements `clone()` by enabling active, iterative editing (vs. passive isolation)
+- Remains unopinionated—developers choose when and how to use it
 
 ### Relevant Files
 

@@ -1,7 +1,7 @@
 ---
 number: 7
 title: "Feature/yaml serialization"
-state: open
+state: closed
 labels:
 ---
 

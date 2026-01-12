@@ -1,7 +1,7 @@
 ---
 number: 10
 title: "Feat: Add a Retry composite node for automatic retries with fallback handling"
-state: open
+state: closed
 labels:
 ---
 
@@ -38,9 +38,9 @@ flow = Flow().then(
 
 ### Key Benefits
 
-- Makes flows resilient to transient tool failures  
-- Keeps error handling inside the `Flow` API no imperative workarounds  
-- Leverages existing `clone()` mechanism for context safety  
+- Makes flows resilient to transient tool failures
+- Keeps error handling inside the `Flow` API no imperative workarounds
+- Leverages existing `clone()` mechanism for context safety
 
 ### Relevant Files
 

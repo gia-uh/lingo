@@ -1,7 +1,7 @@
 ---
 number: 1
 title: "Branching nodes (`Decide`, `Choose`) lack atomicity and can pollute context on failure"
-state: open
+state: closed
 labels:
 ---
 
