@@ -11,7 +11,6 @@ class Context:
 
     def __init__(self, messages: list[Message]):
         self._messages = messages
-        self._state_stack: list[list[Message]] = []
 
     @property
     def messages(self) -> list[Message]:
@@ -47,13 +46,13 @@ class Context:
         block will be discarded upon exit.
         """
         # Save the current list of messages
-        self._state_stack.append(list(self._messages))
+        snapshot = list(self._messages)
 
         try:
             yield self
         finally:
             # Restore the original list of messages
-            self._messages = self._state_stack.pop()
+            self._messages = snapshot
 
     @contextlib.contextmanager
     def atomic(self):
