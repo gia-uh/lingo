@@ -6,7 +6,7 @@ from .embed import Embedder
 from .tools import tool
 from .engine import Engine
 
-__version__ = "0.5.0"
+__version__ = "1.0rc1"
 
 __all__ = [
     "Context",
