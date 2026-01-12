@@ -183,14 +183,14 @@ class When[T](Node[T]):
     child nodes (which are typically Sequence or NoOp nodes).
     """
 
-    def __init__(self, yes: Node[T], no: Node[T], *instructions: str | Message):
-        self.on_true = yes
-        self.on_false = no
+    def __init__(self, then: Node[T], otherwise: Node[T], *instructions: str | Message):
+        self.then = then
+        self.otherwise = otherwise
         self.instructions = instructions
 
     async def execute(self, context: Context, engine: Engine) -> T:
         result = await engine.decide(context, *self.instructions)
-        node_to_run = self.on_true if result else self.on_false
+        node_to_run = self.then if result else self.otherwise
         return await node_to_run.execute(context, engine)
 
 
@@ -505,7 +505,7 @@ class Flow[T](Sequence[T]):
         """
         return self.then(Act(*tools))  # type: ignore
 
-    def when(self, prompt: str, yes: Node[T], no: Node[T] = NoOp()) -> Flow[T]:
+    def when(self, prompt: str, then: Node[T], otherwise: Node[T] = NoOp()) -> Flow[T]:
         """
         Adds a conditional branching step (True/False).
         The LLM will make a boolean decision based on the prompt.
@@ -515,7 +515,7 @@ class Flow[T](Sequence[T]):
             yes: The Node (e.g., another Flow) to execute if True.
             no: The Node to execute if False. Defaults to NoOp.
         """
-        return self.then(When(yes, no, prompt))  # type: ignore
+        return self.then(When(then=then, otherwise=otherwise, prompt))  # type: ignore
 
     def decide(self, prompt: str) -> Flow[bool]:
         """
