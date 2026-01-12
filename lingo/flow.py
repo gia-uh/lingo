@@ -286,10 +286,11 @@ class Fork[T](Node[T]):
     Executes multiple sub-flows in parallel using context clones.
     Synthesizes results using an aggregator Node or string prompt.
     """
+
     def __init__(
         self,
         branches: list[Node[Any]],
-        aggregator: str | Node[T] = "Summarize these inputs"
+        aggregator: str | Node[T] = "Summarize these inputs",
     ):
         self.branches = branches
         self.aggregator = aggregator
@@ -297,9 +298,9 @@ class Fork[T](Node[T]):
     async def execute(self, context: Context, engine: Engine) -> T:
         # 1. Run all branches in parallel with isolated context clones
         # context.clone() ensures that 'scratchpad' messages stay in the branch
-        results = await asyncio.gather(*(
-            node.execute(context.clone(), engine) for node in self.branches
-        ))
+        results = await asyncio.gather(
+            *(node.execute(context.clone(), engine) for node in self.branches)
+        )
 
         # 2. Prepare aggregator context (clone of original + branch results)
         agg_context = context.clone()
@@ -319,10 +320,12 @@ class Fork[T](Node[T]):
 
         # 4. Integrate the final synthesized result into the main context
         # This keeps the main history clean while informing it of the fork's conclusion
-        summary_text = result.model_dump_json() if isinstance(result, BaseModel) else str(result)
+        summary_text = (
+            result.model_dump_json() if isinstance(result, BaseModel) else str(result)
+        )
         context.append(Message.assistant(summary_text))
 
-        return result # type: ignore
+        return result  # type: ignore
 
 
 class Retry[T](Node[T]):
@@ -331,6 +334,7 @@ class Retry[T](Node[T]):
     On failure, rolls back context and runs a 'fixer' node to update
     the context for the next attempt.
     """
+
     def __init__(self, body: Node[T], fixer: Node[Any], max_retries: int = 3):
         self.body = body
         self.fixer = fixer
@@ -350,7 +354,9 @@ class Retry[T](Node[T]):
                 # Rollback happened automatically via atomic().
                 # Now, run the fixer to add "hints" or error info to the context.
                 with context.fork():
-                    context.append(Message.system(f"The attempt failed with exception: {e}"))
+                    context.append(
+                        Message.system(f"The attempt failed with exception: {e}")
+                    )
                     fix = await self.fixer.execute(context, engine)
 
                 context.append(Message.system(fix))
@@ -363,6 +369,7 @@ class Attempt[T](Node[T]):
     Tries to execute the 'body' node. If it fails, the context is rolled back
     and the 'fallback' node is executed instead.
     """
+
     def __init__(self, body: Node[T], fallback: Node[T]):
         self.body = body
         self.fallback = fallback
@@ -375,6 +382,61 @@ class Attempt[T](Node[T]):
         except Exception:
             # Fallback is executed in the cleaned context
             return await self.fallback.execute(context, engine)
+
+
+# lingo/flow.py
+
+
+class Compress(Node[None]):
+    """
+    Prunes the context window.
+    - If aggregator is provided: Context becomes [Prefix, Summary].
+    - If aggregator is None: Context becomes [Prefix, Last N] (Limit mode).
+    """
+
+    def __init__(
+        self,
+        n: int | None = None,
+        prefix_k: int = 1,
+        aggregator: str | Node[str] | None = "Summarize the conversation history.",
+    ):
+        self.n = n
+        self.prefix_k = prefix_k
+        self.aggregator = aggregator
+
+    async def execute(self, context: Context, engine: Engine) -> None:
+        # 1. Identify the 'Anchor' Prefix (e.g., system prompts)
+        prefix = context.messages[: self.prefix_k]
+
+        # 2. Identify the 'Working' messages to summarize or keep
+        if self.n is not None:
+            working = context.messages[-self.n :]
+        else:
+            working = list(context.messages)
+
+        # Ensure we don't duplicate the prefix in the final message set
+        clean_working = [m for m in working if m not in prefix]
+
+        # 3. Handle Limit Mode (Aggregator is None)
+        if self.aggregator is None:
+            context.messages[:] = prefix + clean_working
+            return None
+
+        # 4. Handle Compression Mode
+        # Create a temp context of the prefix + working messages to summarize
+        summary_ctx = Context(prefix + clean_working)
+
+        if isinstance(self.aggregator, str):
+            # Use the engine directly to get a summary string
+            summary_msg = await engine.reply(summary_ctx, self.aggregator)
+            summary_text = str(summary_msg.content)
+        else:
+            # Use a custom node/flow for aggregation
+            summary_text = await self.aggregator.execute(summary_ctx, engine)
+
+        # 5. Prune and Update the Context
+        # Final state: Anchor Prefix + a System message containing the summary
+        context.messages[:] = prefix + [Message.system(f"SUMMARY: {summary_text}")]
 
 
 # --- User-Facing Fluent API ---
@@ -512,12 +574,14 @@ class Flow[T](Sequence[T]):
         condition = Decide(until) if isinstance(until, str) else until
         return self.then(Repeat(body, condition, max_repeats))  # type: ignore
 
-    def fork[U](self, *flows: Node[Any], aggregator: str | Node[U] = "Summarize these inputs") -> Flow[U]:
+    def fork[U](
+        self, *flows: Node[Any], aggregator: str | Node[U] = "Summarize these inputs"
+    ) -> Flow[U]:
         """
         Adds a parallel fork step to the flow.
         The Flow's return type transitions to the type U returned by the aggregator.
         """
-        return self.then(Fork(list(flows), aggregator)) # type: ignore
+        return self.then(Fork(list(flows), aggregator))  # type: ignore
 
     def retry(self, fixer: Node[Any], max_retries: int = 3) -> Flow[T]:
         """
@@ -546,6 +610,19 @@ class Flow[T](Sequence[T]):
         # The Flow's return type transitions to match the fallback/body type U
         self.nodes = [Attempt(body, fallback)]
         return self  # type: ignore
+
+    def compress(
+        self,
+        n: int | None = None,
+        prefix_k: int = 1,
+        aggregator: str | Node[str] | None = "Summarize the history.",
+    ) -> Flow[None]:
+        """
+        Prunes the context history.
+        If aggregator is None, it acts as a simple sliding window (Limit).
+        Returns the summary string (or None if in Limit mode).
+        """
+        return self.then(Compress(n, prefix_k, aggregator))  # type: ignore
 
     async def __call__(self, engine: Engine, messages: list[Message]) -> T:
         """
