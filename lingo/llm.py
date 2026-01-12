@@ -194,9 +194,9 @@ class LLM:
                         useful mostly for login usage.
             **extra_kwargs: Additional arguments for the client (e.g., temperature).
         """
-        self.on_token = on_token
-        self.on_create = on_create
-        self.on_message = on_message
+        self._on_token = on_token
+        self._on_create = on_create
+        self._on_message = on_message
 
         if model is None:
             model = os.getenv("MODEL")
@@ -208,6 +208,27 @@ class LLM:
         self.model = model
         self.client = openai.AsyncOpenAI(base_url=base_url, api_key=api_key)
         self.extra_kwargs = extra_kwargs
+
+    async def on_token(self, token: str):
+        if self._on_token:
+            resp = self._on_token(token)
+
+            if inspect.iscoroutine(resp):
+                await resp
+
+    async def on_create(self, obj):
+        if self._on_create:
+            resp = self._on_create(obj)
+
+            if inspect.iscoroutine(resp):
+                await resp
+
+    async def on_message(self, msg: Message):
+        if self._on_message:
+            resp = self._on_message(msg)
+
+            if inspect.iscoroutine(resp):
+                await resp
 
     async def chat(self, messages: list["Message"], **kwargs) -> "Message":
         """
@@ -237,22 +258,11 @@ class LLM:
             if content is None:
                 continue
 
-            if self.on_token:
-                # Handle both sync and async callbacks
-                if inspect.iscoroutinefunction(self.on_token):
-                    await self.on_token(content)
-                else:
-                    self.on_token(content)
-
+            await self.on_token(content)
             result_chunks.append(content)
 
         result = Message.assistant("".join(result_chunks), usage=usage)
-
-        if self.on_message:
-            if inspect.iscoroutinefunction(self.on_message):
-                await self.on_message(result)
-            else:
-                self.on_message(result)
+        await self.on_message(result)
 
         return result
 
@@ -290,21 +300,8 @@ class LLM:
         else:
             usage = None
 
-        # Fire the on_create callback
-        if self.on_create:
-            if inspect.iscoroutinefunction(self.on_create):
-                await self.on_create(result)
-            else:
-                self.on_create(result)
-
-        msg = Message.assistant(result.model_dump_json(), usage=usage)
-
-        if self.on_message:
-            if inspect.iscoroutinefunction(self.on_message):
-                await self.on_message(msg)
-            else:
-                self.on_message(msg)
-
+        await self.on_message(Message.assistant(result.model_dump_json(), usage=usage))
+        await self.on_create(result)
         return result
 
     def wrap(self, target: Callable) -> Callable:
