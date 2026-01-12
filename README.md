@@ -11,192 +11,107 @@
 ![PyPi - Downloads (Monthly)](https://img.shields.io/pypi/dm/lingo-ai)
 ![Github - Commits](https://img.shields.io/github/commit-activity/m/gia-uh/lingo)
 
------
 
-`lingo` provides a powerful, three-layered API for building, testing, and deploying complex LLM workflows with precision and clarity.
+**Lingo** is a framework for creating LLM-based applications built on the concept of **Prompt Flows**. It offers two distinct patterns for building AI logic: the **Flow API** (declarative) and the **Bot API** (imperative). You can mix and match these approaches as needed, using flows for reusable logic and the Bot API for stateful, interactive agents.
 
-## The Philosophy: A Three-Layer API
+## 1. The Flow API (Declarative)
 
-`lingo` is built on the idea that developers need different levels of abstraction for different tasks.
+The Flow API is designed for building reusable, stateless sequences of operations. Using a fluent interface, you chain nodes that represent logical steps. Because these flows use Python 3.12 generics (`Flow[T]`), the return type is tracked throughout the entire chain.
 
-1.  **The High-Level `Lingo` API**: For purely declarative, ready-to-use LLM assistants. This is the fastest way to get a chatbot running.
-2.  **The Mid-Level `Flow` API**: For declarative, reusable context engineering workflows. This allows you to define complex, composable logic with branching, tool use, and subroutines.
-3.  **The Low-Level (`LLM`, `Engine`, `Context`) API**: For direct, explicit context engineering. This gives you full, imperative control over the message history and LLM interactions.
+### Example: A Research & Extraction Flow
 
-## Installation
-
-```bash
-pip install lingo-ai
-```
-
-You will also need to set your environment variables (e.g., in a `.env` file) for your LLM provider:
-
-```.env
-# Example for OpenAI
-MODEL="gpt-4o"
-API_KEY="sk-..."
-```
-
-## Quickstart: A 5-Line Chatbot
-
-This is the fastest way to get a `lingo` assistant running using the high-level `Lingo` class.
+This flow performs parallel research, handles potential errors atomically, and extracts structured data.
 
 ```python
-from lingo import Lingo
-from lingo.cli import loop
-import dotenv
+from lingo import Flow, Engine, LLM
+from pydantic import BaseModel
 
-# Load .env variables (API_KEY, MODEL)
-dotenv.load_dotenv()
+class ResearchData(BaseModel):
+    summary: str
+    confidence: float
 
-# 1. Initialize the assistant
-bot = Lingo(
-    name="Assistant",
-    description="A simple, helpful chatbot."
+# Define a 'fixer' for retries
+fixer = Flow().append(lambda ctx: f"Error encountered: {ctx.metadata['last_exception']}")
+
+# Declarative Flow
+research_flow = (Flow[ResearchData]("Researcher")
+    .append("Topic: {topic}")
+    .fork(
+        Flow().append("Search news...").act(news_tool),
+        Flow().append("Search wiki...").act(wiki_tool),
+        aggregator="Synthesize these findings"
+    )
+    .retry(fixer, max_retries=2)
+    .create(ResearchData, "Generate the final JSON object")
 )
-
-# 2. Run the chat loop in your terminal
-loop(bot)
 ```
 
-That's it\! You now have a fully interactive chatbot.
+## 2. The Bot API (Imperative)
 
-```bash
-Name: Assistant
-Description: A simple, helpful chatbot.
+The Bot API allows you to build stateful agents by inheriting from the `Lingo` class. Here, you manually interact with the `Engine` and `Context`. The primary building block is the **Skill**, which acts as a top-level router. The bot automatically selects the most appropriate skill based on the user's input.
 
-[Press Ctrl+D to exit]
+### Example: The Banker Bot
 
->>> Hello!
-Hello! How can I help you today?
-
->>>
-```
-
-## The Three API Layers
-
-`lingo` gives you the flexibility to choose the right level of abstraction.
-
-### 1\. High-Level API: The `Lingo` Class
-
-This is the "batteries-included" approach. The `Lingo` class manages the `LLM`, `Engine`, and `Flow` for you. You just define **skills** (reusable flows) and **tools**, and `lingo` handles routing the conversation to the correct one.
-
-This is the recommended starting point for most applications.
+This bot uses skills to handle different intents and includes manual **Tool Calling**.
 
 ```python
-from lingo import Lingo, Context, Engine
-from lingo.cli import loop
-import dotenv
+from lingo import Lingo, Context, Engine, Message, skill, tool
 
-dotenv.load_dotenv()
+bot = Lingo(name="Banker", description="A bank assistant")
 
-bot = Lingo(
-    name="Greeter",
-    description="A bot that just says hello."
-)
-
-# A "skill" is a complete, self-contained workflow
 @bot.skill
-async def greet(context: Context, engine: Engine):
-    """A skill to greet the user."""
+async def banker_skill(context: Context, engine: Engine):
+    """Interact with the bank account."""
+    # Manual tool selection and invocation
+    selected_tool = await engine.equip(context) # Inspects available @bot.tools
+    result = await engine.invoke(context, selected_tool)
+
+    # Imperative response generation
     await engine.reply(
         context,
-        "You are a friendly greeter. Reply with a warm welcome."
+        Message.system(result),
+        Message.system("Inform the user of the result.")
     )
 
-loop(bot)
+@bot.tool
+async def check_balance() -> dict:
+    """Returns the current account balance."""
+    return {"balance": 1000}
+
+# You can also call a declarative Flow from within a Skill
+@bot.skill
+async def specialized_task(context: Context, engine: Engine):
+    """Runs a pre-defined declarative flow."""
+    result = await my_declarative_flow.run(engine, context)
+    context.append(Message.assistant(f"Task complete: {result}"))
 ```
 
-### 2\. Mid-Level API: The `Flow` Class
+## 3. Key Differences at a Glance
 
-The `Flow` class provides a fluent, chainable interface for declaratively building reusable workflows. You define the *steps* of the conversation, and `lingo` handles the execution. This is perfect for defining complex, stateful logic.
+| Feature | Flow API (Declarative) | Bot API (Imperative) |
+| --- | --- | --- |
+| **Logic Type** | Reusable, stateless sequences. | Stateful, dynamic agents. |
+| **Control** | Orchestrated via `Node` components. | Direct access to `Engine` and `Context`. |
+| **Branching** | Handled by `When` and `Branch` nodes. | Handled by the **Skill Router**. |
+| **Tool Use** | Managed via the `act()` node. | Manual `equip()` and `invoke()` calls. |
+| **Error Handling** | Transactional `retry()` and `attempt()`. | Manual try/except or `context.atomic()`. |
 
-```python
-import asyncio
-from lingo import Lingo, Flow, Message, Engine, LLM
-from lingo.tools import tool
+## 4. Resilience & Memory Management
 
-llm = LLM(model="gpt-4o")
+Both APIs benefit from Lingo's v1.0 core primitives:
 
-@tool
-async def get_weather(location: str) -> str:
-    """Gets the current weather for a specified location."""
-    return "It's 75°F and sunny."
+* **Atomic Transactions**: Use `context.atomic()` to roll back history if a segment of logic fails, ensuring a clean history.
+* **Context Compression**: Use `compress()` to prune the message history (summarizing or sliding window) to stay within token limits.
+* **Usage Auditing**: Every interaction tracks token counts via `Usage` objects and optional `on_message` callbacks for the `LLM`.
 
-# A flow is a composable, reusable blueprint
-weather_flow = (
-    Flow(name="Weather")
-    .system("You only answer with the weather.")
-    .invoke(get_weather)  # -> ToolResult is added to context
-    .reply()              # -> LLM generates reply based on ToolResult
-)
+## 5. Contribution & License
 
-# You can nest flows inside other flows
-main_flow = (
-    Flow(name="Main")
-    .choose(
-        prompt="Is the user asking about weather or stocks?",
-        choices=dict(
-            weather=weather_flow,
-            stocks=Flow().reply("I don't know about stocks."),
-        )
-    )
-)
+### Contribution
 
-async def main():
-    engine = Engine(llm)
-    messages = [Message.user("What's the weather like?")]
+Contributions are welcome! Please see `CONTRIBUTING.md` for guidelines on submitting PRs or reporting issues.
 
-    # Run the flow
-    final_context = await main_flow(engine, messages)
-    print(final_context.messages[-1].content)
+### License
 
-asyncio.run(main())
-```
+Lingo is released under the **MIT License**.
 
-### 3\. Low-Level API: `LLM`, `Engine`, & `Context`
-
-For maximum control, you can use the imperative API.
-
-  * **`Context`**: A simple, mutable object holding the `list[Message]`.
-  * **`LLM`**: The client for interacting with the LLM API (e.g., `chat`, `create`).
-  * **`Engine`**: The "behavior" layer. It holds the `LLM` and performs operations *on* a `Context` (e.g., `engine.reply(context)`, `engine.invoke(context, tool)`).
-
-This is ideal for building custom chatbot loops or integrating `lingo` into an existing application.
-
-```python
-import asyncio
-from lingo import LLM, Engine, Context, Message
-
-async def main():
-    # 1. Setup the components
-    llm = LLM(model="gpt-4o")
-    engine = Engine(llm)
-
-    # 2. The Context is a pure, mutable state object
-    context = Context([
-        Message.system("You are a helpful assistant.")
-    ])
-
-    # 3. Manually build the conversation
-    user_input = "Hello!"
-    context.append(Message.user(user_input))
-
-    # 4. Call the Engine to perform an LLM operation
-    response = await engine.reply(context)
-
-    # 5. Mutate the context with the new message
-    context.append(response)
-
-    print(f"Bot: {response.content}")
-
-asyncio.run(main())
-```
-
-## Contributing
-
-Contributions are welcome\! `lingo` is an open-source project, and we'd love your help in making it better. Please feel free to open an issue or submit a pull request.
-
-## License
-
-`lingo` is licensed under the **MIT License**. See the `LICENSE` file for details.
+Would you like me to generate a more complex example where a **Bot API** agent manages multiple **Flow API** routines?
