@@ -515,7 +515,7 @@ class Flow[T](Sequence[T]):
             yes: The Node (e.g., another Flow) to execute if True.
             no: The Node to execute if False. Defaults to NoOp.
         """
-        return self.then(When(then=then, otherwise=otherwise, prompt))  # type: ignore
+        return self.then(When(prompt, then=then, otherwise=otherwise))  # type: ignore
 
     def decide(self, prompt: str) -> Flow[bool]:
         """
