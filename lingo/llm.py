@@ -16,12 +16,18 @@ class Content(BaseModel):
 
     type: str
 
+    def __str__(self) -> str:
+        raise TypeError("Not a textual content.")
+
 
 class TextContent(Content):
     """Standard text content."""
 
     type: Literal["text"] = "text"
     text: str
+
+    def __str__(self):
+        return self.text
 
 
 class ImageContent(Content):
