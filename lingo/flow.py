@@ -74,6 +74,7 @@ class Decide(Node[bool]):
     A leaf node that returns True or False to a given
     prompt.
     """
+
     def __init__(self, prompt: str):
         self.prompt = prompt
 
@@ -85,6 +86,7 @@ class Choose[T](Node[T]):
     """
     A leaf node that returns one of several items.
     """
+
     def __init__(self, prompt: str, *options: T):
         self.prompt = prompt
         self.options = list(options)
@@ -250,6 +252,131 @@ class Route[T](Node[T]):
         return await selected_flow.execute(context, engine)
 
 
+class Repeat[T](Node[T]):
+    """
+    A Composite node that implements an iterative loop.
+    It executes the 'body' until the 'until' condition returns True
+    or the 'max_repeats' limit is reached.
+    """
+
+    def __init__(self, body: Node[T], until: Node[bool], max_repeats: int = 5):
+        self.body = body
+        self.until = until
+        self.max_repeats = max_repeats
+
+    async def execute(self, context: Context, engine: Engine) -> T:
+        """
+        Executes the loop. Returns the result of the final iteration's body.
+        """
+        last_result: Any = None
+
+        for _ in range(self.max_repeats):
+            # 1. Execute the main body of the loop
+            last_result = await self.body.execute(context, engine)
+
+            # 2. Check the exit condition
+            if await self.until.execute(context, engine):
+                break
+
+        return last_result  # type: ignore
+
+
+class Fork[T](Node[T]):
+    """
+    Executes multiple sub-flows in parallel using context clones.
+    Synthesizes results using an aggregator Node or string prompt.
+    """
+    def __init__(
+        self,
+        branches: list[Node[Any]],
+        aggregator: str | Node[T] = "Summarize these inputs"
+    ):
+        self.branches = branches
+        self.aggregator = aggregator
+
+    async def execute(self, context: Context, engine: Engine) -> T:
+        # 1. Run all branches in parallel with isolated context clones
+        # context.clone() ensures that 'scratchpad' messages stay in the branch
+        results = await asyncio.gather(*(
+            node.execute(context.clone(), engine) for node in self.branches
+        ))
+
+        # 2. Prepare aggregator context (clone of original + branch results)
+        agg_context = context.clone()
+        for res in results:
+            # Format results for the aggregator's context
+            content = res.model_dump_json() if isinstance(res, BaseModel) else str(res)
+            agg_context.append(Message.system(content))
+
+        # 3. Perform aggregation
+        if isinstance(self.aggregator, str):
+            # Default string aggregator is wrapped in a Reply node
+            agg_node = Reply(self.aggregator)
+            result = await agg_node.execute(agg_context, engine)
+        else:
+            # Custom Node[T] allows for structured data aggregation
+            result = await self.aggregator.execute(agg_context, engine)
+
+        # 4. Integrate the final synthesized result into the main context
+        # This keeps the main history clean while informing it of the fork's conclusion
+        summary_text = result.model_dump_json() if isinstance(result, BaseModel) else str(result)
+        context.append(Message.assistant(summary_text))
+
+        return result # type: ignore
+
+
+class Retry[T](Node[T]):
+    """
+    Attempts to execute a node multiple times.
+    On failure, rolls back context and runs a 'fixer' node to update
+    the context for the next attempt.
+    """
+    def __init__(self, body: Node[T], fixer: Node[Any], max_retries: int = 3):
+        self.body = body
+        self.fixer = fixer
+        self.max_retries = max_retries
+
+    async def execute(self, context: Context, engine: Engine) -> T:
+        for i in range(self.max_retries):
+            try:
+                # Try the body atomically
+                with context.atomic():
+                    return await self.body.execute(context, engine)
+            except Exception as e:
+                # If this was the last attempt, re-raise the error
+                if i == self.max_retries - 1:
+                    raise e
+
+                # Rollback happened automatically via atomic().
+                # Now, run the fixer to add "hints" or error info to the context.
+                with context.fork():
+                    context.append(Message.system(f"The attempt failed with exception: {e}"))
+                    fix = await self.fixer.execute(context, engine)
+
+                context.append(Message.system(fix))
+
+        raise AssertionError("We can't be here")
+
+
+class Attempt[T](Node[T]):
+    """
+    Tries to execute the 'body' node. If it fails, the context is rolled back
+    and the 'fallback' node is executed instead.
+    """
+    def __init__(self, body: Node[T], fallback: Node[T]):
+        self.body = body
+        self.fallback = fallback
+
+    async def execute(self, context: Context, engine: Engine) -> T:
+        try:
+            # Use the atomic manager to ensure failure doesn't pollute history
+            with context.atomic():
+                return await self.body.execute(context, engine)
+        except Exception:
+            # Fallback is executed in the cleaned context
+            return await self.fallback.execute(context, engine)
+
+
 # --- User-Facing Fluent API ---
 
 
@@ -282,7 +409,7 @@ class Flow[T](Sequence[T]):
         if isinstance(msg, str):
             msg = Message.system(msg)
 
-        return self.then(Append(msg)) # type: ignore
+        return self.then(Append(msg))  # type: ignore
 
     def prepend(self, msg: str | Message) -> Flow[None]:
         """
@@ -292,7 +419,7 @@ class Flow[T](Sequence[T]):
         if isinstance(msg, str):
             msg = Message.system(msg)
 
-        return self.then(Prepend(msg)) # type: ignore
+        return self.then(Prepend(msg))  # type: ignore
 
     def reply(self, *instructions: str | Message) -> Flow[str]:
         """
@@ -303,7 +430,7 @@ class Flow[T](Sequence[T]):
             *instructions: Optional, temporary instructions for this
                            specific reply, e.g., Message.system("Be concise").
         """
-        return self.then(Reply(*instructions)) # type: ignore
+        return self.then(Reply(*instructions))  # type: ignore
 
     def act(self, *tools: Tool) -> Flow[Any]:
         """
@@ -314,7 +441,7 @@ class Flow[T](Sequence[T]):
         Args:
             *tools: One or more Tool objects available for this step.
         """
-        return self.then(Act(*tools)) # type: ignore
+        return self.then(Act(*tools))  # type: ignore
 
     def when(self, prompt: str, yes: Node[T], no: Node[T] = NoOp()) -> Flow[T]:
         """
@@ -326,21 +453,21 @@ class Flow[T](Sequence[T]):
             yes: The Node (e.g., another Flow) to execute if True.
             no: The Node to execute if False. Defaults to NoOp.
         """
-        return self.then(When(yes, no, prompt)) # type: ignore
+        return self.then(When(yes, no, prompt))  # type: ignore
 
     def decide(self, prompt: str) -> Flow[bool]:
         """
         Adds a step that computes a bool responde for
         a specific question.
         """
-        return self.then(Decide(prompt)) # type: ignore
+        return self.then(Decide(prompt))  # type: ignore
 
     def choose[R](self, prompt: str, *options: R) -> Flow[R]:
         """
         Adds a step that computes a bool responde for
         a specific question.
         """
-        return self.then(Choose(prompt, *options)) # type: ignore
+        return self.then(Choose(prompt, *options))  # type: ignore
 
     def branch(self, prompt: str, **choices: Node[T]) -> Flow[T]:
         """
@@ -352,7 +479,7 @@ class Flow[T](Sequence[T]):
             choices: A dictionary mapping string choices to the
                      Node (e.g., another Flow) to execute.
         """
-        return self.then(Branch(choices, prompt)) # type: ignore
+        return self.then(Branch(choices, prompt))  # type: ignore
 
     def create[R: BaseModel](self, model: Type[R], prompt: str) -> Flow[R]:
         """
@@ -362,13 +489,63 @@ class Flow[T](Sequence[T]):
             model: A pydantic class to create.
             instructions: Optional sequence of temporal instructions.
         """
-        return self.then(Create(model, prompt)) # type: ignore
+        return self.then(Create(model, prompt))  # type: ignore
 
     def custom(self, func: Callable[[Context, Engine], Coroutine]) -> Flow:
-        return self.then(FunctionalNode(func)) # type: ignore
+        return self.then(FunctionalNode(func))  # type: ignore
 
     def route[R](self, *flows: Flow[R]) -> Flow[R]:
-        return self.then(Route(*flows)) # type: ignore
+        return self.then(Route(*flows))  # type: ignore
+
+    def repeat[U](
+        self, body: Node[U], until: str | Node[bool], max_repeats: int = 5
+    ) -> Flow[U]:
+        """
+        Adds an iterative loop to the flow.
+
+        Args:
+            body: The Node or Flow to repeat.
+            until: A prompt string (LLM decision) or a Node returning bool.
+            max_repeats: Safety limit to prevent infinite loops.
+        """
+        # Wrap string prompts into a Decide node automatically
+        condition = Decide(until) if isinstance(until, str) else until
+        return self.then(Repeat(body, condition, max_repeats))  # type: ignore
+
+    def fork[U](self, *flows: Node[Any], aggregator: str | Node[U] = "Summarize these inputs") -> Flow[U]:
+        """
+        Adds a parallel fork step to the flow.
+        The Flow's return type transitions to the type U returned by the aggregator.
+        """
+        return self.then(Fork(list(flows), aggregator)) # type: ignore
+
+    def retry(self, fixer: Node[Any], max_retries: int = 3) -> Flow[T]:
+        """
+        Wraps all previously defined steps into a Retry block.
+        If an exception occurs, the context is rolled back via atomic(),
+        the 'fixer' node is executed to provide feedback, and the flow
+        re-starts from the first step.
+        """
+        # Package existing nodes as the 'body' to be retried
+        body = Sequence(*self.nodes)
+
+        # Replace current flow logic with the wrapped Retry node
+        self.nodes = [Retry(body, fixer, max_retries)]
+        return self
+
+    def fallback(self, fallback: Node[T]) -> Flow[T]:
+        """
+        Wraps all previously defined steps into an Attempt block.
+        If the primary flow fails, the context is rolled back via atomic()
+        and the fallback node is executed instead.
+        """
+        # Package existing nodes as the primary attempt 'body'
+        body = Sequence(*self.nodes)
+
+        # Replace current flow logic with the wrapped Attempt node
+        # The Flow's return type transitions to match the fallback/body type U
+        self.nodes = [Attempt(body, fallback)]
+        return self  # type: ignore
 
     async def __call__(self, engine: Engine, messages: list[Message]) -> T:
         """

@@ -54,3 +54,19 @@ class Context:
         finally:
             # Restore the original list of messages
             self._messages = self._state_stack.pop()
+
+    @contextlib.contextmanager
+    def atomic(self):
+        """
+        Rolls back mutations ONLY if an exception is raised.
+        If successful, the mutations are committed to the history.
+        """
+        # Snapshot the current state
+        snapshot = list(self._messages)
+
+        try:
+            yield self
+        except Exception:
+            # Rollback: restore the snapshot on failure
+            self._messages = snapshot
+            raise
