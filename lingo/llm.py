@@ -10,6 +10,7 @@ import openai
 
 class Usage(BaseModel):
     """Token usage statistics for an LLM interaction."""
+
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
@@ -222,14 +223,14 @@ class LLM:
             model=self.model,  # type: ignore
             messages=api_messages,  # type: ignore
             stream=True,
-            stream_options=dict(include_usage=True), # type: ignore
+            stream_options=dict(include_usage=True),  # type: ignore
             **(self.extra_kwargs | kwargs),
         ):
             if chunk.usage:
                 usage = Usage(
                     prompt_tokens=chunk.usage.prompt_tokens,
                     completion_tokens=chunk.usage.completion_tokens,
-                    total_tokens=chunk.usage.total_tokens
+                    total_tokens=chunk.usage.total_tokens,
                 )
 
             content = chunk.choices[0].delta.content
@@ -284,7 +285,7 @@ class LLM:
             usage = Usage(
                 prompt_tokens=response.usage.prompt_tokens,
                 completion_tokens=response.usage.completion_tokens,
-                total_tokens=response.usage.total_tokens
+                total_tokens=response.usage.total_tokens,
             )
         else:
             usage = None
