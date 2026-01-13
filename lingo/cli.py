@@ -37,10 +37,10 @@ async def run(lingo: Lingo, input_fn=None, output_fn=None):
     # The handler is simplified, as it only receives strings
     cli_token_handler = output_fn
 
-    original_on_token = lingo.llm.on_token
-    original_on_create = lingo.llm.on_create
+    original_on_token = lingo.llm._on_token
+    original_on_create = lingo.llm._on_create
 
-    lingo.llm.on_token = (
+    lingo.llm._on_token = (
         tee(cli_token_handler, original_on_token)
         if original_on_token
         else cli_token_handler
@@ -53,7 +53,7 @@ async def run(lingo: Lingo, input_fn=None, output_fn=None):
         output_fn("\n--------------------------\n")
 
     if lingo.verbose:
-        lingo.llm.on_create = (
+        lingo.llm._on_create = (
             tee(original_on_create, _verbose_on_create)
             if original_on_create
             else _verbose_on_create
@@ -68,7 +68,7 @@ async def run(lingo: Lingo, input_fn=None, output_fn=None):
         pass
     finally:
         # Restore the original on_token callback
-        lingo.llm.on_token = original_on_token
+        lingo.llm._on_token = original_on_token
 
 
 def loop(lingo: Lingo, input_fn=None, output_fn=None):
