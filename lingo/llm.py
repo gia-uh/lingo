@@ -142,7 +142,7 @@ class Message(BaseModel):
         """
         Custom model dump to handle structured Content and Pydantic models.
         """
-        dump = super().model_dump(*args, **kwargs)
+        dump = super().model_dump(*args, **kwargs, exclude={'usage'})
         content = self.content
 
         # 1. Handle raw strings (Standard Text)
