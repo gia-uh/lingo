@@ -47,6 +47,23 @@ class Lingo:
         self.registry.register(self)
         self.registry.register(self.llm)
 
+        self.before_hooks: list[Callable] = []
+        self.after_hooks: list[Callable] = []
+
+    def before(self, func: Callable[[Context, Engine], Coroutine]):
+        """
+        Decorator to register a function to run BEFORE the main flow/skills.
+        """
+        self.before_hooks.append(self.registry.inject(func))
+        return func
+
+    def after(self, func: Callable[[Context, Engine], Coroutine]):
+        """
+        Decorator to register a function to run AFTER the main flow/skills.
+        """
+        self.after_hooks.append(self.registry.inject(func))
+        return func
+
     def skill(self, func: Callable[[Context, Engine], Coroutine]):
         """
         Decorator to register a method as a skill for the chatbot.
@@ -67,13 +84,20 @@ class Lingo:
     def _build_flow(self) -> Flow:
         flow = Flow("Main flow").prepend(self.system_prompt)
 
+        for hook in self.before_hooks:
+            flow.custom(hook)
+
         if not self.skills:
-            return flow.reply()
+            flow.reply()
+        elif len(self.skills) == 1:
+            flow.then(self.skills[0])
+        else:
+            flow.route(*self.skills)
 
-        if len(self.skills) == 1:
-            return flow.then(self.skills[0])
+        for hook in self.after_hooks:
+            flow.custom(hook)
 
-        return flow.route(*self.skills, prompt=self.router_prompt)
+        return flow
 
     async def chat(self, msg: str) -> Message:
         self.messages.append(Message.user(msg))

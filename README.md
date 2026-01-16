@@ -2,15 +2,13 @@
 
 <p align="center"> <strong>A minimal, async-native, and unopinionated toolkit for modern LLM applications.</strong> </p>
 
----
-
-<!-- Project badges -->
 ![PyPI - Version](https://img.shields.io/pypi/v/lingo-ai)
 ![PyPi - Python Version](https://img.shields.io/pypi/pyversions/lingo-ai)
 ![Github - Open Issues](https://img.shields.io/github/issues-raw/gia-uh/lingo)
 ![PyPi - Downloads (Monthly)](https://img.shields.io/pypi/dm/lingo-ai)
 ![Github - Commits](https://img.shields.io/github/commit-activity/m/gia-uh/lingo)
 
+---
 
 **Lingo** is a framework for creating LLM-based applications built on the concept of **Prompt Flows**. It offers two distinct patterns for building AI logic: the **Flow API** (declarative) and the **Bot API** (imperative). You can mix and match these approaches as needed, using flows for reusable logic and the Bot API for stateful, interactive agents.
 
@@ -48,55 +46,73 @@ research_flow = (Flow[ResearchData]("Researcher")
 
 ## 2. The Bot API (Imperative)
 
-The Bot API allows you to build stateful agents by inheriting from the `Lingo` class. Here, you manually interact with the `Engine` and `Context`. The primary building block is the **Skill**, which acts as a top-level router. The bot automatically selects the most appropriate skill based on the user's input.
+The Bot API allows you to build stateful agents by inheriting from the `Lingo` class. It provides a robust **Dependency Injection** system, allowing your skills and tools to request resources (like the `LLM`, `Context`, or custom services) automatically.
 
-### Example: The Banker Bot
+### Example: The Banker Bot with Dependency Injection
 
-This bot uses skills to handle different intents and includes manual **Tool Calling**.
+This bot demonstrates how to inject dependencies directly into tools, keeping your logic clean and testable.
 
 ```python
-from lingo import Lingo, Context, Engine, Message, skill, tool
+from lingo import Lingo, Context, Engine, Message, skill, tool, LLM
+from purely import depends
 
+# 1. Initialize Bot
 bot = Lingo(name="Banker", description="A bank assistant")
 
+# 2. Define Tools with Injection
+@bot.tool
+async def analyze_spending(
+    category: str,
+    # Automatically inject the LLM instance
+    llm: LLM = depends(LLM)
+) -> str:
+    """Analyze spending history for a category."""
+    # The LLM is available here without manual passing
+    response = await llm.chat([Message.user(f"Analyze {category}")])
+    return response.content
+
+# 3. Define Skills
 @bot.skill
 async def banker_skill(context: Context, engine: Engine):
     """Interact with the bank account."""
-    # Manual tool selection and invocation
-    selected_tool = await engine.equip(context) # Inspects available @bot.tools
-    result = await engine.invoke(context, selected_tool)
 
-    # Imperative response generation
-    await engine.reply(
-        context,
-        Message.system(result),
-        Message.system("Inform the user of the result.")
-    )
+    # Engine.equip automatically respects injected dependencies
+    selected_tool = await engine.equip(context)
 
-@bot.tool
-async def check_balance() -> dict:
-    """Returns the current account balance."""
-    return {"balance": 1000}
+    # Engine.invoke merges LLM-generated args with manual overrides
+    # You can pass internal flags (starting with _) that the LLM won't see
+    result = await engine.invoke(context, selected_tool, _internal_flag=True)
 
-# You can also call a declarative Flow from within a Skill
-@bot.skill
-async def specialized_task(context: Context, engine: Engine):
-    """Runs a pre-defined declarative flow."""
-    result = await my_declarative_flow.run(engine, context)
-    context.append(Message.assistant(f"Task complete: {result}"))
+    await engine.reply(context, Message.system(result.model_dump_json()))
 ```
 
-## 3. Key Differences at a Glance
+## 3. Middleware & Hooks
 
-| Feature | Flow API (Declarative) | Bot API (Imperative) |
-| --- | --- | --- |
-| **Logic Type** | Reusable, stateless sequences. | Stateful, dynamic agents. |
-| **Control** | Orchestrated via `Node` components. | Direct access to `Engine` and `Context`. |
-| **Branching** | Handled by `When` and `Branch` nodes. | Handled by the **Skill Router**. |
-| **Tool Use** | Managed via the `act()` node. | Manual `equip()` and `invoke()` calls. |
-| **Error Handling** | Transactional `retry()` and `attempt()`. | Manual try/except or `context.atomic()`. |
+Lingo supports a middleware system that allows you to execute logic before and after the main skill routing. This is ideal for logging, context preparation, or cleanup.
 
-## 4. Resilience & Memory Management
+```python
+@bot.before
+async def log_interaction(context: Context, engine: Engine):
+    print(f"New interaction started with {len(context)} messages.")
+
+@bot.after
+async def cleanup(context: Context, engine: Engine):
+    # Perform cleanup or analytics
+    print("Interaction finished.")
+```
+
+## 4. Key Differences at a Glance
+
+| Feature          | Flow API (Declarative)                | Bot API (Imperative)                     |
+| ---------------- | ------------------------------------- | ---------------------------------------- |
+| **Logic Type**   | Reusable, stateless sequences.        | Stateful, dynamic agents.                |
+| **Control**      | Orchestrated via `Node` components.   | Direct access to `Engine` and `Context`. |
+| **Branching**    | Handled by `When` and `Branch` nodes. | Handled by the **Skill Router**.         |
+| **Tool Use**     | Managed via the `act()` node.         | Manual `equip()` and `invoke()` calls.   |
+| **Dependencies** | Passed via `Flow` arguments.          | **Automatic Dependency Injection**.      |
+| **Hooks**        | N/A                                   | **@before** and **@after** middleware.   |
+
+## 5. Resilience & Memory Management
 
 Both APIs benefit from Lingo's v1.0 core primitives:
 
@@ -104,7 +120,7 @@ Both APIs benefit from Lingo's v1.0 core primitives:
 * **Context Compression**: Use `compress()` to prune the message history (summarizing or sliding window) to stay within token limits.
 * **Usage Auditing**: Every interaction tracks token counts via `Usage` objects and optional `on_message` callbacks for the `LLM`.
 
-## 5. Contribution & License
+## 6. Contribution & License
 
 ### Contribution
 
@@ -113,5 +129,3 @@ Contributions are welcome! Please see `CONTRIBUTING.md` for guidelines on submit
 ### License
 
 Lingo is released under the **MIT License**.
-
-Would you like me to generate a more complex example where a **Bot API** agent manages multiple **Flow API** routines?
