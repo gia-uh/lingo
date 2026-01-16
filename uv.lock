@@ -299,6 +299,7 @@ version = "1.0rc3"
 source = { editable = "." }
 dependencies = [
     { name = "openai" },
+    { name = "purely" },
     { name = "pydantic" },
 ]
 
@@ -315,6 +316,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "openai", specifier = ">=2.7.2" },
+    { name = "purely", specifier = ">=1.0" },
     { name = "pydantic", specifier = ">=2.12.4" },
 ]
 
@@ -390,6 +392,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f9/e2/3e91f31a7d2b083fe6ef3fa267035b518369d9511ffab804f839851d2779/pluggy-1.6.0.tar.gz", hash = "sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3", size = 69412 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl", hash = "sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746", size = 20538 },
+]
+
+[[package]]
+name = "purely"
+version = "1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/61/b4/54029d642e67e46c0cdfdfc51e186cfd3e71b795264ff8d091da3ef2494c/purely-1.0.tar.gz", hash = "sha256:3b30e7bb9e6007ec0ae90324dfd4b72741ab682d1085bbc5ee38d4b1d4dba321", size = 28870 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/de/5b/21a41b70f6b8e6422ce50ec116619f7e138a870182319ffe7fa55bdc3a76/purely-1.0-py3-none-any.whl", hash = "sha256:89e9887b41fcb54de7d361a19a61e7da5001d426a035b6aa9435e8f40254657e", size = 10913 },
 ]
 
 [[package]]

@@ -1,4 +1,5 @@
 from typing import Callable, Coroutine, Iterator, Protocol
+from purely import Registry
 from .flow import Flow, flow
 from .llm import LLM, Message
 from .tools import Tool, tool
@@ -40,18 +41,22 @@ class Lingo:
         )
         self.verbose = verbose
 
+        self.registry = Registry()
+        self.registry.register(self)
+        self.registry.register(self.llm)
+
     def skill(self, func: Callable[[Context, Engine], Coroutine]):
         """
         Decorator to register a method as a skill for the chatbot.
         """
-        self.skills.append(flow(func))
+        self.skills.append(flow(self.registry.inject(func)))
 
     def tool(self, func: Callable):
         """
         Decorator to register a function as a tool.
         Automatically injects the LLM if necessary.
         """
-        self.tools.append(tool(self.llm.wrap(func)))
+        self.tools.append(tool(self.registry.inject(func)))
 
     def _build_flow(self) -> Flow:
         flow = Flow("Main flow").prepend(self.system_prompt)

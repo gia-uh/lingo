@@ -184,10 +184,7 @@ class Engine:
             # 3. Merge, with **kwargs taking precedence
             all_params = {**generated_dict, **kwargs}
 
-            # Wrap the tool's run method to inject the LLM
-            wrapped_run = self._llm.wrap(tool.run)
-
-            result = await wrapped_run(**all_params)
+            result = await tool.run(**all_params)
             return ToolResult(tool=tool.name, result=result)
 
         except Exception as e:

@@ -303,34 +303,3 @@ class LLM:
         await self.on_message(Message.assistant(result.model_dump_json(), usage=usage))
         await self.on_create(result)
         return result
-
-    def wrap(self, target: Callable) -> Callable:
-        """
-        Wraps a tool function to inject self (the LLM) if type-hinted.
-        """
-        llm_param_name: str | None = None
-        parameters = inspect.signature(target).parameters
-
-        # Find the parameter annotated as LingoLLM
-        for name, param in parameters.items():
-            # Check for both the class and its string name
-            if param.annotation is LLM or param.annotation == "LLM":
-                llm_param_name = name
-                break
-
-        if llm_param_name is None:
-            # Not an LLM-aware tool, return original function
-            return target
-
-        @functools.wraps(target)
-        async def wrapper(*args, **kwargs):
-            # Inject self as the LLM instance
-            kwargs[llm_param_name] = self
-            return await target(*args, **kwargs)
-
-        # Remove the LLM param from wrapper's annotations
-        # to avoid confusion in later inspections (e.g., by MethodTool)
-        if hasattr(wrapper, "__annotations__"):
-            wrapper.__annotations__.pop(llm_param_name, None)
-
-        return wrapper

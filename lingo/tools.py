@@ -1,5 +1,7 @@
 import abc
 import asyncio
+import inspect
+from purely.di import _Depends
 from pydantic import BaseModel
 from typing import Callable, Any, get_type_hints
 
@@ -46,15 +48,35 @@ class DelegateTool(Tool):
         self._target = target
 
     def parameters(self) -> dict[str, type]:
-        """Extracts parameters from the function's type annotations."""
+        """
+        Extracts parameters from the function's type annotations,
+        filtering out internal (_) and dependency-injected parameters.
+        """
+        sig = inspect.signature(self._target)
         try:
-            args = get_type_hints(self._target)
+            hints = get_type_hints(self._target)
         except (AttributeError, TypeError, NameError):
-            # Fallback if type hints are complex
-            args = self._target.__annotations__
+            # Fallback if type hints are complex or unavailable
+            hints = getattr(self._target, "__annotations__", {})
 
-        # Exclude 'return'
-        return {name: type_ for name, type_ in args.items() if name != "return"}
+        params = {}
+        for name, param in sig.parameters.items():
+            # Exclude internal/manual parameters (starting with _)
+            if name.startswith("_"):
+                continue
+
+            # Exclude parameters marked with dependency injection
+            if isinstance(param.default, _Depends):
+                continue
+
+            # Exclude the return annotation
+            if name == "return":
+                continue
+
+            # Add valid tool parameters to the schema
+            params[name] = hints.get(name, Any)
+
+        return params
 
     async def run(self, **kwargs) -> Any:
         """Runs the wrapped function."""
