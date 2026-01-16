@@ -49,14 +49,18 @@ class Lingo:
         """
         Decorator to register a method as a skill for the chatbot.
         """
-        self.skills.append(flow(self.registry.inject(func)))
+        s = flow(self.registry.inject(func))
+        self.skills.append(s)
+        return s
 
     def tool(self, func: Callable):
         """
         Decorator to register a function as a tool.
         Automatically injects the LLM if necessary.
         """
-        self.tools.append(tool(self.registry.inject(func)))
+        t = tool(self.registry.inject(func))
+        self.tools.append(t)
+        return t
 
     def _build_flow(self) -> Flow:
         flow = Flow("Main flow").prepend(self.system_prompt)

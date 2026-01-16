@@ -138,11 +138,11 @@ class Message(BaseModel):
         """Creates a message with an online video URL."""
         return cls.user(VideoContent(video_url={"url": url}))
 
-    def model_dump(self, *args, **kwargs) -> dict[str, Any]:
+    def model_dump(self) -> dict[str, Any]:
         """
         Custom model dump to handle structured Content and Pydantic models.
         """
-        dump = super().model_dump(*args, **kwargs, exclude={"usage"})
+        dump = dict(role=self.role)
         content = self.content
 
         # 1. Handle raw strings (Standard Text)
