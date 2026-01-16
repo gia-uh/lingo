@@ -27,6 +27,7 @@ class Lingo:
         system_prompt: str = DEFAULT_SYSTEM_PROMPT,
         verbose: bool = False,
         conversation: Conversation | None = None,
+        router_prompt: str | None = None,
     ) -> None:
         self.name = name
         self.description = description
@@ -40,6 +41,7 @@ class Lingo:
             conversation if conversation is not None else list[Message]()
         )
         self.verbose = verbose
+        self.router_prompt = router_prompt
 
         self.registry = Registry()
         self.registry.register(self)
@@ -71,7 +73,7 @@ class Lingo:
         if len(self.skills) == 1:
             return flow.then(self.skills[0])
 
-        return flow.route(*self.skills)
+        return flow.route(*self.skills, prompt=self.router_prompt)
 
     async def chat(self, msg: str) -> Message:
         self.messages.append(Message.user(msg))

@@ -223,11 +223,12 @@ class Route[T](Node[T]):
     two or more flows.
     """
 
-    def __init__(self, *flows: Flow[T]) -> None:
+    def __init__(self, *flows: Flow[T], prompt: str | None = None) -> None:
         if len(flows) < 2:
             raise ValueError("Route needs at least two flows.")
 
         self.flows = list(flows)
+        self.prompt = prompt
 
     async def execute(self, context: Context, engine: Engine) -> T:
         # Build a description list for the LLM
@@ -243,6 +244,9 @@ class Route[T](Node[T]):
             + "\n".join(descriptions)
             + "\n\nSelect the most appropriate option to handle the conversation."
         )
+
+        if self.prompt:
+            instruction += "\n\n" + self.prompt
 
         # context.choose uses str(option) for the list of keys.
         # Since Flow.__str__ returns the name, the keys will be clean names.
@@ -556,8 +560,8 @@ class Flow[T](Sequence[T]):
     def custom(self, func: Callable[[Context, Engine], Coroutine]) -> Flow:
         return self.then(FunctionalNode(func))  # type: ignore
 
-    def route[R](self, *flows: Flow[R]) -> Flow[R]:
-        return self.then(Route(*flows))  # type: ignore
+    def route[R](self, *flows: Flow[R], prompt: str | None = None) -> Flow[R]:
+        return self.then(Route(*flows, prompt=prompt))  # type: ignore
 
     def repeat[U](
         self, body: Node[U], until: str | Node[bool], max_repeats: int = 5
@@ -610,6 +614,9 @@ class Flow[T](Sequence[T]):
         # The Flow's return type transitions to match the fallback/body type U
         self.nodes = [Attempt(body, fallback)]
         return self  # type: ignore
+
+    def then[U](self, node: Node[U]) -> Flow[U]:
+        return cast(Flow[U], super().then(node))
 
     def compress(
         self,
