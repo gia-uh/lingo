@@ -15,7 +15,7 @@ bot = Lingo()
 # - 'llm' is automatically injected from the bot's registry.
 # - '_secret_key' is hidden from the LLM's parameter schema because it starts with '_'.
 @bot.tool
-async def smart_search(query: str, _secret_key: str, llm = depends(LLM)):
+async def smart_search(query: str, _secret_key: str, llm=depends(LLM)):
     """
     Performs a search and uses the LLM to summarize the findings.
     """
