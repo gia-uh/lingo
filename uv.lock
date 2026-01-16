@@ -297,7 +297,7 @@ wheels = [
 
 [[package]]
 name = "lingo-ai"
-version = "1.0rc3"
+version = "1.0rc4"
 source = { editable = "." }
 dependencies = [
     { name = "openai" },
