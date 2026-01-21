@@ -1,6 +1,5 @@
-from lingo import Lingo, Message, LLM, Context, Engine
+from lingo import Lingo, Message, LLM, Context, Engine, depends
 from lingo.cli import loop
-from purely import depends
 import dotenv
 
 # 1. Setup and Configuration

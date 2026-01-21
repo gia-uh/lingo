@@ -6,6 +6,8 @@ from .embed import Embedder
 from .tools import tool
 from .engine import Engine
 
+from purely import depends
+
 __version__ = "1.0"
 
 __all__ = [
@@ -18,4 +20,5 @@ __all__ = [
     "Embedder",
     "Message",
     "tool",
+    "depends",
 ]

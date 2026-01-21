@@ -155,37 +155,48 @@ class Engine:
         4. Returns a ToolResult (with data or error).
         """
         try:
-            parameters: dict[str, Any] = tool.parameters()
-
-            # --- Fix for Issue #4 ---
-            # 1. Create a Pydantic model for the *entire* set of parameters
-            param_fields = {name: (p_type, ...) for name, p_type in parameters.items()}
-            model_cls: type[BaseModel] = create_model(tool.name, **param_fields)
-
-            # 2. Ask the LLM to fill in this *full* model.
-            prompt_str = DEFAULT_INVOKE_PROMPT.format(
-                name=tool.name,
-                description=tool.description,
-                parameters=parameters,
-                defaults=json.dumps(kwargs),
-                schema=model_cls.model_json_schema(),
-            )
-
-            call_messages = self._expand_content(
-                context, *instructions, Message.system(prompt_str)
-            )
-
-            # The LLM generates its "best guess" for all params
-            generated_params: BaseModel = await self.create(
-                context, model_cls, *call_messages
-            )
-            generated_dict = generated_params.model_dump()
-
-            # 3. Merge, with **kwargs taking precedence
-            all_params = {**generated_dict, **kwargs}
+            all_params = await self.infer(context, tool, *instructions, **kwargs)
 
             result = await tool.run(**all_params)
             return ToolResult(tool=tool.name, result=result)
 
         except Exception as e:
             return ToolResult(tool=tool.name, error=str(e))
+
+    async def infer(
+        self, context: Context, tool: Tool, *instructions: str | Message, **kwargs
+    ) -> dict[str, Any]:
+        """
+        Infers parameters for a given tool, and returns a dictionary with
+        all the parameters. Can be passed a list of custom parameter values
+        if you want to fix some of them.
+        """
+        parameters: dict[str, Any] = tool.parameters()
+
+        # --- Fix for Issue #4 ---
+        # 1. Create a Pydantic model for the *entire* set of parameters
+        param_fields = {name: (p_type, ...) for name, p_type in parameters.items()}
+        model_cls: type[BaseModel] = create_model(tool.name, **param_fields)
+
+        # 2. Ask the LLM to fill in this *full* model.
+        prompt_str = DEFAULT_INVOKE_PROMPT.format(
+            name=tool.name,
+            description=tool.description,
+            parameters=parameters,
+            defaults=json.dumps(kwargs),
+            schema=model_cls.model_json_schema(),
+        )
+
+        call_messages = self._expand_content(
+            context, *instructions, Message.system(prompt_str)
+        )
+
+        # The LLM generates its "best guess" for all params
+        generated_params: BaseModel = await self.create(
+            context, model_cls, *call_messages
+        )
+        generated_dict = generated_params.model_dump()
+
+        # 3. Merge, with **kwargs taking precedence
+        all_params = {**generated_dict, **kwargs}
+        return all_params

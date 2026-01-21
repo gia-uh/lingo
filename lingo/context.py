@@ -17,18 +17,24 @@ class Context:
         """Gets the mutable list of messages for this turn."""
         return self._messages
 
-    def append(self, message: Message) -> None:
+    def append(self, message: Message | str) -> None:
         """
         Mutates the context by appending a message to its
         internal list.
         """
+        if isinstance(message, str):
+            message = Message.system(message)
+
         self._messages.append(message)
 
-    def prepend(self, message: Message) -> None:
+    def prepend(self, message: Message | str) -> None:
         """
         Mutates the context by prepending a message to its
         internal list.
         """
+        if isinstance(message, str):
+            message = Message.system(message)
+
         self._messages.insert(0, message)
 
     def clone(self) -> "Context":
