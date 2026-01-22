@@ -34,13 +34,8 @@ class Skill:
         Decorator to register a tool specifically for this skill.
         The tool is only available when this skill is executing.
         """
-        # Inject dependencies into the tool
-        injected_func = self.registry.inject(func)
-
-        # Create the tool wrapper and add to local scope
-        t = tool(injected_func)
-        self.tools.append(t)
-        return func
+        self.tools.append(t := tool(self.registry.inject(func)))
+        return t
 
     def subskill(self, func: Callable[[Context, Engine], Coroutine]) -> Skill:
         """
@@ -63,13 +58,13 @@ class Skill:
         Compile a Skill into a Flow object linking all subskills
         and tools.
         """
-        f = flow(self.method)
+        f = flow(self.registry.inject(self.method))
 
         if self.subskills:
             f.route(*[s.build() for s in self.subskills])
 
         for c in self.callbacks:
-            f.custom(c)
+            f.custom(self.registry.inject(c))
 
         if self.tools:
             # We create a new container Flow to hold the Scope

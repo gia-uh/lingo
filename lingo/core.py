@@ -8,6 +8,7 @@ from .tools import Tool, tool
 from .context import Context
 from .prompts import DEFAULT_SYSTEM_PROMPT
 from .engine import Engine
+from .state import State
 
 
 class Conversation(Protocol):
@@ -30,6 +31,7 @@ class Lingo:
         verbose: bool = False,
         conversation: Conversation | None = None,
         router_prompt: str | None = None,
+        state: State | None = None
     ) -> None:
         self.name = name
         self.description = description
@@ -44,10 +46,12 @@ class Lingo:
         )
         self.verbose = verbose
         self.router_prompt = router_prompt
+        self.state = state
 
         self.registry = Registry()
         self.registry.register(self)
         self.registry.register(self.llm)
+        self.registry.register(self.state)
 
         self.before_hooks: list[Callable] = []
         self.after_hooks: list[Callable] = []
@@ -55,6 +59,9 @@ class Lingo:
     def before(self, func: Callable[[Context, Engine], Coroutine]):
         """
         Decorator to register a function to run BEFORE the main flow/skills.
+
+        Useful to, e.g., add few-shot examples to dynamically improve
+        skill routing.
         """
         self.before_hooks.append(self.registry.inject(func))
         return func
@@ -62,6 +69,8 @@ class Lingo:
     def after(self, func: Callable[[Context, Engine], Coroutine]):
         """
         Decorator to register a function to run AFTER the main flow/skills.
+
+        Usable to, e.g., compress or clean up the context.
         """
         self.after_hooks.append(self.registry.inject(func))
         return func
@@ -78,8 +87,7 @@ class Lingo:
         Decorator to register a function as a tool.
         Automatically injects the LLM if necessary.
         """
-        t = tool(self.registry.inject(func))
-        self.tools.append(t)
+        self.tools.append(t := tool(self.registry.inject(func)))
         return t
 
     def _build_flow(self) -> Flow:

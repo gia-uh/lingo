@@ -5,6 +5,7 @@ from .llm import LLM, Message
 from .embed import Embedder
 from .tools import tool
 from .engine import Engine
+from .state import State
 
 from purely import depends
 
@@ -12,13 +13,14 @@ __version__ = "1.0"
 
 __all__ = [
     "Context",
+    "depends",
+    "Embedder",
     "Engine",
     "flow",
     "Flow",
     "Lingo",
     "LLM",
-    "Embedder",
     "Message",
+    "State",
     "tool",
-    "depends",
 ]
