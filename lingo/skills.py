@@ -66,9 +66,7 @@ class Skill:
         f = flow(self.method)
 
         if self.subskills:
-            f.route(
-                *[s.build() for s in self.subskills]
-            )
+            f.route(*[s.build() for s in self.subskills])
 
         for c in self.callbacks:
             f.custom(c)
