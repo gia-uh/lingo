@@ -54,17 +54,21 @@ class State[T: BaseModel](dict):
         shared_keys: set[str] | None = None,
         **kwargs,
     ):
-        # 1. Initialize the dict content first
-        initial_data = data or {}
-        initial_data.update(kwargs)
-        super().__init__(initial_data)
+        # 1. Gather all data sources
+        # Priority: kwargs > data > subclass_defaults
+        final_data = getattr(self.__class__, "_class_defaults", {}).copy()
+        if data:
+            final_data.update(data)
+        final_data.update(kwargs)
 
-        # 2. Use object.__setattr__ to avoid triggering our own __setattr__ logic
-        #    This ensures these exist in __dict__ before any property access happens.
+        # 2. Initialize dict
+        super().__init__(final_data)
+
+        # 3. Setup internals (bypass __setattr__)
         object.__setattr__(self, "_schema", schema)
         object.__setattr__(self, "_shared_keys", shared_keys or set())
 
-        # 3. Validate if schema is present
+        # 4. Validate
         if self._schema:
             self.validate()
 
