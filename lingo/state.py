@@ -1,12 +1,11 @@
+import yaml
 import contextlib
 import copy
-from typing import Any, Type, TypeVar, Self
+from typing import Any, Type, Self
 from pydantic import BaseModel, ValidationError
 
-T = TypeVar("T", bound=BaseModel)
 
-
-class State(dict):
+class State[T: BaseModel](dict):
     """
     A smart dictionary for conversation state.
 
@@ -170,3 +169,26 @@ class State(dict):
         finally:
             self.clear()
             self.update(snapshot)
+
+    def render(self, *keys: str) -> str:
+        """
+        Returns a clean YAML string representation of the state.
+        Useful for injecting state data into prompt contexts.
+
+        Usage:
+            context.append(Message.system(f"CURRENT STATE:\n{state.render('score', 'history')}"))
+        """
+
+        # 1. Filter data
+        if keys:
+            # Only include keys that exist to avoid KeyErrors, or let it crash if strictness is preferred.
+            # Here we skip missing keys to be safe for prompting.
+            data = {k: self[k] for k in keys if k in self}
+        else:
+            # Convert to plain dict to avoid YAML object tags
+            data = dict(self)
+
+        # 2. Render
+        # default_flow_style=False -> Uses block style (lists/dicts are expanded)
+        # sort_keys=False -> Preserves insertion order (better for context logic)
+        return yaml.safe_dump(data, default_flow_style=False, sort_keys=False).strip()

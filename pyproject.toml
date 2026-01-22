@@ -17,6 +17,7 @@ dependencies = [
     "openai>=2.7.2",
     "purely>=1.0",
     "pydantic>=2.12.4",
+    "pyyaml>=6.0.3",
 ]
 
 [build-system]
