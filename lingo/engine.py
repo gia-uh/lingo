@@ -7,7 +7,7 @@ layer that operates on the pure-state "Context" objects.
 
 import json
 from pydantic import BaseModel, create_model
-from typing import Any, Literal, Type
+from typing import Any, Literal, Self, Type
 from enum import Enum
 
 from .llm import LLM, Message
@@ -31,6 +31,17 @@ class Engine:
     def __init__(self, llm: LLM, tools: list[Tool] | None = None):
         self._llm = llm
         self._tools = list(tools or [])
+
+    def scope(self, tools: list[Tool]) -> Self:
+        """
+        Returns a new Engine instance with the additional tools available.
+        This creates a lightweight copy, ensuring that parallel flows
+        do not interfere with each other's tool sets.
+        """
+        # Combine current tools with new tools
+        # (You might want to add logic here to handle duplicate names if needed)
+        new_tool_set = self._tools + tools
+        return self.__class__(self._llm, new_tool_set)
 
     def _expand_content(self, context: Context, *instructions) -> list[Message]:
         """Helper to combine context messages with temporary instructions."""

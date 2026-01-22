@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Callable, Coroutine
 from purely import Registry
-from .flow import Flow, flow
+from .flow import Flow, Scope, flow
 from .context import Context
 from .engine import Engine
 from .tools import Tool, tool
@@ -64,7 +64,6 @@ class Skill:
         and tools.
         """
         f = flow(self.method)
-        f.custom(self.method)
 
         if self.subskills:
             f.route(
@@ -73,5 +72,12 @@ class Skill:
 
         for c in self.callbacks:
             f.custom(c)
+
+        if self.tools:
+            # We create a new container Flow to hold the Scope
+            # This ensures the structure remains a Flow object
+            wrapper = Flow(name=f.name, description=f.description)
+            wrapper.then(Scope(self.tools, f))
+            return wrapper
 
         return f

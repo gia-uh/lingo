@@ -443,8 +443,27 @@ class Compress(Node[None]):
         context.messages[:] = prefix + [Message.system(f"SUMMARY: {summary_text}")]
 
 
-# --- User-Facing Fluent API ---
+class Scope[T](Node[T]):
+    """
+    A Composite node that creates a temporary tool scope.
+    It clones the Engine, adds the new tools, and executes
+    its body with the new Engine instance.
+    """
 
+    def __init__(self, tools: list[Tool], body: Node[T]):
+        self.tools = tools
+        self.body = body
+
+    async def execute(self, context: Context, engine: Engine) -> T:
+        # 1. Create a NEW engine instance with the scoped tools
+        # This is safe for concurrency because we don't mutate 'engine'
+        scoped_engine = engine.scope(self.tools)
+
+        # 2. Execute the body with the new engine
+        return await self.body.execute(context, scoped_engine)
+
+
+# --- User-Facing Fluent API ---
 
 class Flow[T](Sequence[T]):
     """

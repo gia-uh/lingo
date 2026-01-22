@@ -1,5 +1,7 @@
 from typing import Callable, Coroutine, Iterator, Protocol
 from purely import Registry
+
+from lingo.skills import Skill
 from .flow import Flow, flow
 from .llm import LLM, Message
 from .tools import Tool, tool
@@ -22,7 +24,7 @@ class Lingo:
         name: str = "Lingo",
         description: str = "A friendly chatbot.",
         llm: LLM | None = None,
-        skills: list[Flow] | None = None,
+        skills: list[Skill] | None = None,
         tools: list[Tool] | None = None,
         system_prompt: str = DEFAULT_SYSTEM_PROMPT,
         verbose: bool = False,
@@ -35,7 +37,7 @@ class Lingo:
             name=self.name, description=self.description
         )
         self.llm = llm or LLM()
-        self.skills: list[Flow] = skills or []
+        self.skills: list[Skill] = skills or []
         self.tools: list[Tool] = tools or []
         self.messages: Conversation = (
             conversation if conversation is not None else list[Message]()
@@ -68,8 +70,7 @@ class Lingo:
         """
         Decorator to register a method as a skill for the chatbot.
         """
-        s = flow(self.registry.inject(func))
-        self.skills.append(s)
+        self.skills.append(s := Skill(self.registry, func))
         return s
 
     def tool(self, func: Callable):
@@ -90,9 +91,9 @@ class Lingo:
         if not self.skills:
             flow.reply()
         elif len(self.skills) == 1:
-            flow.then(self.skills[0])
+            flow.then(self.skills[0].build())
         else:
-            flow.route(*self.skills)
+            flow.route(*[s.build() for s in self.skills])
 
         for hook in self.after_hooks:
             flow.custom(hook)
