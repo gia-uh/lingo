@@ -1,17 +1,18 @@
-from collections import UserDict
 import contextlib
 import copy
-from typing import Any, Type, Self
+from typing import Any, Type, TypeVar, Self
 from pydantic import BaseModel, ValidationError
 
+T = TypeVar("T", bound=BaseModel)
 
-class State[T: BaseModel](UserDict):
+
+class State(dict):
     """
     A smart dictionary for conversation state.
 
     Features:
     - **Attribute Access**: Use `state.count` instead of `state['count']`.
-    - **IDE Support**: Subclass this to get autocompletion.
+    - **Recursion Safe**: Strict guards on magic methods.
     - **Transaction Safety**: Use `atomic()` and `fork()` for rollbacks.
     """
 
@@ -27,7 +28,8 @@ class State[T: BaseModel](UserDict):
         initial_data.update(kwargs)
         super().__init__(initial_data)
 
-        # 2. Set internal attributes using object.__setattr__ to avoid any __setattr__ hook issues
+        # 2. Use object.__setattr__ to avoid triggering our own __setattr__ logic
+        #    This ensures these exist in __dict__ before any property access happens.
         object.__setattr__(self, "_schema", schema)
         object.__setattr__(self, "_shared_keys", shared_keys or set())
 
@@ -39,7 +41,7 @@ class State[T: BaseModel](UserDict):
         """Validates the current state against the Pydantic schema."""
         if self._schema:
             try:
-                # Construct model from dict content
+                # We validate by constructing the model from the dict content
                 validated = self._schema(**self).model_dump()
                 self.update(validated)
             except ValidationError as e:
@@ -47,22 +49,22 @@ class State[T: BaseModel](UserDict):
 
     def __getattr__(self, key: str) -> Any:
         """Enables `state.key` access."""
-        # CRITICAL FIX: Immediately raise AttributeError for internal/magic methods
-        # to prevent infinite recursion during pickling/copying.
+        # CRITICAL FIX: Immediately fail for private/magic methods.
+        # This prevents infinite recursion when pickling/copying checks for __getstate__, etc.
         if key.startswith("_"):
             raise AttributeError(key)
 
         try:
             return self[key]
         except KeyError:
-            # Must raise AttributeError, otherwise hasattr() and copy() break
+            # Must raise AttributeError, not KeyError, for getattr protocol
             raise AttributeError(
                 f"'{self.__class__.__name__}' object has no attribute '{key}'"
             )
 
     def __setattr__(self, key: str, value: Any):
         """Enables `state.key = value` assignment."""
-        # Private attributes go to the instance's __dict__ (bypassing dict storage)
+        # Private attributes go directly to the instance's __dict__
         if key.startswith("_"):
             object.__setattr__(self, key, value)
         # Public attributes go to the dictionary content
@@ -105,6 +107,7 @@ class State[T: BaseModel](UserDict):
     def __deepcopy__(self, memo):
         """Support for copy.deepcopy()"""
         # We manually implement this to use our smart copy logic
+        # and avoid recursive pickling checks.
         return self.clone()
 
     # --- Context Managers ---
