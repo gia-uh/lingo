@@ -16,6 +16,38 @@ class State(dict):
     - **Transaction Safety**: Use `atomic()` and `fork()` for rollbacks.
     """
 
+    def __init_subclass__(cls, **kwargs):
+        """
+        Intervention to make Pydantic-style defaults work with Dict storage.
+        We strip assignments like `score = 0` from the class so they don't block
+        __getattr__, and store them in `_class_defaults` to be applied in __init__.
+        """
+        super().__init_subclass__(**kwargs)
+
+        defaults = {}
+        # Iterate over class dict to find assigned values
+        for k in list(cls.__dict__.keys()):
+            if k.startswith("_"):
+                continue
+
+            v = cls.__dict__[k]
+            # Skip methods, properties, and descriptors
+            if callable(v) or hasattr(v, "__get__"):
+                continue
+
+            # It's a default value (e.g. score: int = 0)
+            defaults[k] = v
+            # Remove from class so instance access triggers __getattr__
+            delattr(cls, k)
+
+        # Merge with parent defaults for inheritance support
+        parent_defaults = getattr(cls, "_class_defaults", {})
+        final_defaults = parent_defaults.copy()
+        final_defaults.update(defaults)
+
+        # Use object.__setattr__ to avoid any interference
+        type.__setattr__(cls, "_class_defaults", final_defaults)
+
     def __init__(
         self,
         data: dict | None = None,
