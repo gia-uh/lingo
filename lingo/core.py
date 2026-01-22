@@ -31,7 +31,7 @@ class Lingo:
         verbose: bool = False,
         conversation: Conversation | None = None,
         router_prompt: str | None = None,
-        state: State | None = None
+        state: State | None = None,
     ) -> None:
         self.name = name
         self.description = description

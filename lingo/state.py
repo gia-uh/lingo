@@ -21,7 +21,7 @@ class State[T: BaseModel](UserDict):
         data: dict | None = None,
         schema: Type[T] | None = None,
         shared_keys: set[str] | None = None,
-        **kwargs
+        **kwargs,
     ):
         """
         Args:
@@ -87,9 +87,7 @@ class State[T: BaseModel](UserDict):
     def clone(self) -> Self:
         """Returns an independent copy of the State (for parallel branches)."""
         new_state = self.__class__(
-            self._smart_copy(),
-            schema=self._schema,
-            shared_keys=self._shared_keys
+            self._smart_copy(), schema=self._schema, shared_keys=self._shared_keys
         )
         return new_state
 
