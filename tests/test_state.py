@@ -1,6 +1,7 @@
 import pytest
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 from lingo.state import State
+import yaml
 
 
 def test_init_and_access():
@@ -137,3 +138,64 @@ def test_subclassing_ide_support():
     clone = s.clone()
     assert isinstance(clone, AgentState)
     assert clone.score == 20
+
+
+def test_render_full_state():
+    """Test rendering the entire state without keys."""
+    data = {"user": "Alice", "scores": [10, 20, 30], "meta": {"active": True}}
+    s = State(data)
+
+    yaml_output = s.render()
+
+    # 1. Verify output is valid YAML and matches data
+    parsed = yaml.safe_load(yaml_output)
+    assert parsed == data
+
+    # 2. Verify formatting (nice block style, not JSON-like)
+    assert "user: Alice" in yaml_output
+    assert "- 10" in yaml_output  # List item
+    assert "active: true" in yaml_output  # Boolean conversion
+
+
+def test_render_filtered_keys():
+    """Test rendering specific keys only."""
+    s = State({"a": 1, "b": 2, "c": 3, "d": 4})
+
+    # Request only 'a' and 'c'
+    yaml_output = s.render("a", "c")
+    parsed = yaml.safe_load(yaml_output)
+
+    # Verify we got exact subset
+    assert parsed == {"a": 1, "c": 3}
+
+    # Verify excluded keys are missing
+    assert "b" not in yaml_output
+    assert "d" not in yaml_output
+
+
+def test_render_missing_keys_safe():
+    """Test that requesting non-existent keys doesn't crash."""
+    s = State({"exists": True})
+
+    # 'ghost' key does not exist
+    yaml_output = s.render("exists", "ghost")
+    parsed = yaml.safe_load(yaml_output)
+
+    assert parsed == {"exists": True}
+
+
+def test_render_complex_types():
+    """Test rendering nested objects and Pydantic models."""
+    from pydantic import BaseModel
+
+    class User(BaseModel):
+        name: str
+        age: int
+
+    u = User(name="Bob", age=42)
+    s = State({"user": u.model_dump()})  # State stores dicts usually
+
+    yaml_output = s.render()
+
+    assert "name: Bob" in yaml_output
+    assert "age: 42" in yaml_output
