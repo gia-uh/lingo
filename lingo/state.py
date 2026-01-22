@@ -13,7 +13,6 @@ class State[T: BaseModel](UserDict):
     - **Attribute Access**: Use `state.count` instead of `state['count']`.
     - **IDE Support**: Subclass this to get autocompletion.
     - **Transaction Safety**: Use `atomic()` and `fork()` for rollbacks.
-    - **Serialization**: It's just a dict at runtime, so it serializes easily.
     """
 
     def __init__(
@@ -23,20 +22,16 @@ class State[T: BaseModel](UserDict):
         shared_keys: set[str] | None = None,
         **kwargs,
     ):
-        """
-        Args:
-            data: Initial dictionary data.
-            schema: Optional Pydantic model for validation.
-            shared_keys: Keys that should not be deep-copied (e.g., database connections).
-            **kwargs: Additional initial keys.
-        """
+        # 1. Initialize the dict content first
         initial_data = data or {}
         initial_data.update(kwargs)
         super().__init__(initial_data)
 
-        self._schema = schema
-        self._shared_keys = shared_keys or set()
+        # 2. Set internal attributes using object.__setattr__ to avoid any __setattr__ hook issues
+        object.__setattr__(self, "_schema", schema)
+        object.__setattr__(self, "_shared_keys", shared_keys or set())
 
+        # 3. Validate if schema is present
         if self._schema:
             self.validate()
 
@@ -44,7 +39,7 @@ class State[T: BaseModel](UserDict):
         """Validates the current state against the Pydantic schema."""
         if self._schema:
             try:
-                # Validate by instantiating the model
+                # Construct model from dict content
                 validated = self._schema(**self).model_dump()
                 self.update(validated)
             except ValidationError as e:
@@ -52,27 +47,39 @@ class State[T: BaseModel](UserDict):
 
     def __getattr__(self, key: str) -> Any:
         """Enables `state.key` access."""
+        # CRITICAL FIX: Immediately raise AttributeError for internal/magic methods
+        # to prevent infinite recursion during pickling/copying.
+        if key.startswith("_"):
+            raise AttributeError(key)
+
         try:
             return self[key]
         except KeyError:
-            # Fallback to allow methods/properties of the class to work
-            raise AttributeError(f"'State' object has no attribute '{key}'")
+            # Must raise AttributeError, otherwise hasattr() and copy() break
+            raise AttributeError(
+                f"'{self.__class__.__name__}' object has no attribute '{key}'"
+            )
 
     def __setattr__(self, key: str, value: Any):
         """Enables `state.key = value` assignment."""
-        # Private attributes (internal state) go to the object's __dict__
+        # Private attributes go to the instance's __dict__ (bypassing dict storage)
         if key.startswith("_"):
-            super().__setattr__(key, value)
-        # Public attributes go to the dictionary
+            object.__setattr__(self, key, value)
+        # Public attributes go to the dictionary content
         else:
             self[key] = value
 
     def __delattr__(self, key: str):
         """Enables `del state.key`."""
-        try:
-            del self[key]
-        except KeyError:
-            raise AttributeError(key)
+        if key.startswith("_"):
+            object.__delattr__(self, key)
+        else:
+            try:
+                del self[key]
+            except KeyError:
+                raise AttributeError(key)
+
+    # --- Copying & Serialization Logic ---
 
     def _smart_copy(self) -> dict:
         """Deep copies data, preserving shared keys by reference."""
@@ -91,6 +98,17 @@ class State[T: BaseModel](UserDict):
         )
         return new_state
 
+    def __copy__(self):
+        """Support for copy.copy()"""
+        return self.clone()
+
+    def __deepcopy__(self, memo):
+        """Support for copy.deepcopy()"""
+        # We manually implement this to use our smart copy logic
+        return self.clone()
+
+    # --- Context Managers ---
+
     @contextlib.contextmanager
     def atomic(self):
         """
@@ -99,7 +117,6 @@ class State[T: BaseModel](UserDict):
         snapshot = self._smart_copy()
         try:
             yield self
-            # Optional: Validate on successful exit
             if self._schema:
                 self.validate()
         except Exception:
