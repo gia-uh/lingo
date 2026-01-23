@@ -7,9 +7,7 @@ layer that operates on the pure-state "Context" objects.
 
 import json
 from pydantic import BaseModel, create_model
-from typing import Any, Literal, Self, Type
-from enum import Enum
-
+from typing import Any, Literal, Self
 
 from .llm import LLM, Message
 from .tools import Tool, ToolResult

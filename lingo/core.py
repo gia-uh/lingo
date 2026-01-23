@@ -2,7 +2,7 @@ from typing import Callable, Coroutine, Iterator, Protocol
 from purely import Registry
 from pydantic import BaseModel, Field, create_model
 
-from lingo.skills import Skill
+from .skills import Skill
 from .flow import Flow, flow
 from .llm import LLM, Message
 from .tools import Tool, tool
