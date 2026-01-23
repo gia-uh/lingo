@@ -10,6 +10,7 @@ from pydantic import BaseModel, create_model
 from typing import Any, Literal, Self, Type
 from enum import Enum
 
+
 from .llm import LLM, Message
 from .tools import Tool, ToolResult
 from .context import Context
@@ -211,3 +212,22 @@ class Engine:
         # 3. Merge, with **kwargs taking precedence
         all_params = {**generated_dict, **kwargs}
         return all_params
+
+    async def act(self, context: Context, *tools: Tool) -> ToolResult:
+        """
+        Shortcut for equip/invoke. Selects a tool and runs it immediately,
+        returning the tool result.
+        """
+        tool = await self.equip(context, *tools)
+        return await self.invoke(context, tool)
+
+    def stop(self):
+        """
+        Stops the current flow by raising `StopFlow`, which is
+        captured by Flow.execute(...).
+
+        DO NOT USE outside a Flow `execute` method.
+        """
+        from .flow import StopFlow
+
+        raise StopFlow()

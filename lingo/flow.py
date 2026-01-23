@@ -13,6 +13,12 @@ from .llm import Message
 from .tools import Tool
 
 
+class StopFlow[T](BaseException):
+    def __init__(self, reason: str | None = None, default: T | None = None):
+        self.reason = reason
+        self.default = default
+
+
 class Node[T](abc.ABC):
     """
     An abstract base class for a single, declarative step in a Flow.
@@ -645,28 +651,11 @@ class Flow[T](Sequence[T]):
         """
         return self.then(Compress(n, prefix_k, aggregator))  # type: ignore
 
-    async def __call__(self, engine: Engine, messages: list[Message]) -> T:
-        """
-        Executes the entire defined flow.
-
-        This is the main entry point to run the pipeline. It creates
-        a new Context and Engine, and passes them through every
-        node in the flow.
-
-        Args:
-            llm: The Language Model instance to use.
-            messages: The initial list of messages (e.g., the user's
-                      first message).
-
-        Returns:
-            The final, mutated Context object after all steps
-            have been run.
-        """
-        # Create the pure-state Context
-        context = Context(list(messages))
-
-        # Execute the flow in the Engine
-        return await self.execute(context, engine)
+    async def execute(self, context: Context, engine: Engine) -> T:
+        try:
+            return await super().execute(context, engine)
+        except StopFlow as e:
+            return cast(T, e.default)
 
 
 def flow(func: Callable[[Context, Engine], Coroutine]) -> Flow:
