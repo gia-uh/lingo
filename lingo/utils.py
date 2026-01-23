@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import get_type_hints, Union, Any
+from typing import get_type_hints, Union, Any, Callable
 
 
 def type_to_str(tp: Any) -> str:
@@ -103,3 +103,109 @@ def tee(*functions):
             fn(*args, **kwargs)
 
     return wrapper
+
+
+# Type aliases for clarity
+# Callables receive: (key, value, level, indent_str) -> str
+FormatFn = Callable[[str, Any, int, str], str]
+
+
+class RenderStyle(BaseModel):
+    """
+    Configuration for rendering data.
+    Fields can be format strings OR functions for dynamic logic.
+    """
+
+    # Format: "{title}"
+    title_format: Union[str, Callable[[str], str]] = "## {title}\n\n"
+
+    # Leaf (Key: Value).
+    # String args: {indent}, {key}, {value}, {level}
+    # Callable args: (key, value, level, indent)
+    leaf_format: Union[str, FormatFn] = "{indent}- **{key}**: {value}"
+
+    # Node (Key with children).
+    # String args: {indent}, {key}, {level}
+    # Callable args: (key, None, level, indent)
+    node_format: Union[str, FormatFn] = "{indent}- **{key}**:"
+
+    # List Item.
+    # String args: {indent}, {value}, {level}
+    # Callable args: (None, value, level, indent)
+    list_item_format: Union[str, FormatFn] = "{indent}- {value}"
+
+    indent_string: str = "  "
+
+
+def render(
+    data: BaseModel | dict,
+    title: str | None = None,
+    style: RenderStyle | None = None,
+) -> str:
+    """
+    Renders data into a string using dynamic styles.
+    """
+    style = style or RenderStyle()
+
+    # Helper to resolve format
+    def fmt(
+        template_or_fn: Union[str, FormatFn],
+        key: str = "",
+        value: Any = None,
+        level: int = 0,
+    ) -> str:
+        current_indent = style.indent_string * level
+
+        if callable(template_or_fn):
+            # Pass explicit arguments to the function
+            return template_or_fn(key, value, level, current_indent)
+        else:
+            # Use string interpolation
+            return template_or_fn.format(
+                indent=current_indent,
+                key=key,
+                value=value,
+                level=level,
+                title=value if key == "title" else "",
+            )
+
+    # 1. Normalize Input
+    if isinstance(data, BaseModel):
+        content = data.model_dump(mode="json")
+    else:
+        content = data
+
+    lines = []
+
+    # 2. Render Title
+    if title:
+        if callable(style.title_format):
+            lines.append(style.title_format(title))
+        else:
+            lines.append(style.title_format.format(title=title))
+
+    # 3. Recursive Walker
+    def _walk(obj: Any, level: int):
+
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                if isinstance(v, (dict, list)):
+                    # Complex Node
+                    lines.append(fmt(style.node_format, key=k, level=level))
+                    _walk(v, level + 1)
+                else:
+                    # Leaf Node
+                    lines.append(fmt(style.leaf_format, key=k, value=v, level=level))
+
+        elif isinstance(obj, list):
+            for item in obj:
+                if isinstance(item, (dict, list)):
+                    lines.append(fmt(style.list_item_format, value=None, level=level))
+                    _walk(item, level + 1)
+                else:
+                    lines.append(fmt(style.list_item_format, value=item, level=level))
+
+    # 4. Execute
+    _walk(content, 0)
+
+    return "\n".join(lines).strip()
