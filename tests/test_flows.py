@@ -17,7 +17,7 @@ async def test_value_return_vs_context_mutation():
     flow = Flow[str]().append("System Init").reply("Greet")
 
     # 1. Testing Value Return (returns the string from Reply)
-    result_value = await flow(engine, [Message.user("Hi")])
+    result_value = await flow.execute(Context([Message.user("Hi")]), engine)
     assert result_value == "Hello World"
 
     # 2. Testing Context Mutation (requires explicit Context and execute)
