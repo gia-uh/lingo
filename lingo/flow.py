@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import abc
 import asyncio
-from typing import Any, Callable, Coroutine, Self, Type, cast
+from typing import Any, Callable, Coroutine, Type, cast
 import uuid
 
 from pydantic import BaseModel
 
 from .context import Context
-from .engine import Engine  # Import the new Engine
-from .llm import LLM, Message
+from .engine import Engine
+from .llm import Message
 from .tools import Tool
 
 
@@ -388,9 +388,6 @@ class Attempt[T](Node[T]):
             return await self.fallback.execute(context, engine)
 
 
-# lingo/flow.py
-
-
 class Compress(Node[None]):
     """
     Prunes the context window.
@@ -461,9 +458,6 @@ class Scope[T](Node[T]):
 
         # 2. Execute the body with the new engine
         return await self.body.execute(context, scoped_engine)
-
-
-# --- User-Facing Fluent API ---
 
 
 class Flow[T](Sequence[T]):
@@ -673,9 +667,6 @@ class Flow[T](Sequence[T]):
 
         # Execute the flow in the Engine
         return await self.execute(context, engine)
-
-
-# Utilities
 
 
 def flow(func: Callable[[Context, Engine], Coroutine]) -> Flow:
