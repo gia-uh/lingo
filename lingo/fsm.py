@@ -61,7 +61,7 @@ class StateMachine(Node):
         # Holds the active context during execution to allow parameter-less goto()
         self.context: Context | None = None
 
-    def state(self, func:Callable[[Context, Engine], Coroutine]):
+    def state(self, func: Callable[[Context, Engine], Coroutine]):
         """
         Decorator to register a function as a State.
 
