@@ -1,5 +1,6 @@
 from typing import Callable, Coroutine, Iterator, Protocol
 from purely import Registry
+from pydantic import BaseModel, Field, create_model
 
 from lingo.skills import Skill
 from .flow import Flow, flow
@@ -44,8 +45,8 @@ class Lingo:
         self.messages: Conversation = (
             conversation if conversation is not None else list[Message]()
         )
-        self.verbose = verbose
-        self.router_prompt = router_prompt
+        self._verbose = verbose
+        self._router_prompt = router_prompt
         self.state = state
 
         self.registry = Registry()
@@ -53,8 +54,9 @@ class Lingo:
         self.registry.register(self.llm)
         self.registry.register(self.state)
 
-        self.before_hooks: list[Callable] = []
-        self.after_hooks: list[Callable] = []
+        self._before_hooks: list[Callable] = []
+        self._after_hooks: list[Callable] = []
+        self._filters: dict[str, Flow] = {}
 
     def before(self, func: Callable[[Context, Engine], Coroutine]):
         """
@@ -63,7 +65,7 @@ class Lingo:
         Useful to, e.g., add few-shot examples to dynamically improve
         skill routing.
         """
-        self.before_hooks.append(self.registry.inject(func))
+        self._before_hooks.append(self.registry.inject(func))
         return func
 
     def after(self, func: Callable[[Context, Engine], Coroutine]):
@@ -72,7 +74,7 @@ class Lingo:
 
         Usable to, e.g., compress or clean up the context.
         """
-        self.after_hooks.append(self.registry.inject(func))
+        self._after_hooks.append(self.registry.inject(func))
         return func
 
     def skill(self, func: Callable[[Context, Engine], Coroutine]):
@@ -93,18 +95,24 @@ class Lingo:
     def _build_flow(self) -> Flow:
         flow = Flow("Main flow").prepend(self.system_prompt)
 
-        for hook in self.before_hooks:
+        for hook in self._before_hooks:
             flow.custom(hook)
 
-        if not self.skills:
-            flow.reply()
-        elif len(self.skills) == 1:
+        if self._filters:
+            flow.then(self._build_filters())
+
+        if len(self.skills) == 1:
             flow.then(self.skills[0].build())
-        else:
+        elif len(self.skills) > 1:
             flow.route(*[s.build() for s in self.skills])
 
-        for hook in self.after_hooks:
+        for hook in self._after_hooks:
             flow.custom(hook)
+
+        if len(flow.nodes) == 1:
+            # This is just the prepend system prompt node
+            # We must add at least a reply node
+            flow.reply()
 
         return flow
 
@@ -121,3 +129,32 @@ class Lingo:
             self.messages.append(m)
 
         return self.messages[-1]
+
+    def _build_filters(self):
+        fields = {
+            f"option_{i}": (bool, Field(description=f"True if {key}"))
+            for i, key in enumerate(self._filters)
+        }
+
+        model = create_model("Filter", **fields)
+
+        @flow
+        async def router(context: Context, engine: Engine):
+            response: BaseModel = await engine.create(
+                context, model, "Determine which of these options is true."
+            )
+            filters = response.model_dump()
+
+            for key, value in filters.items():
+                if value:
+                    await self._filters[key].execute(context, engine)
+
+        return router
+
+    def when(self, condition: str):
+        def decorator(func: Callable[[Context, Engine], Coroutine]) -> Flow:
+            f = flow(func)
+            self._filters[condition] = f
+            return f
+
+        return decorator
