@@ -104,7 +104,7 @@ class Lingo:
         if len(self.skills) == 1:
             flow.then(self.skills[0].build())
         elif len(self.skills) > 1:
-            flow.route(*[s.build() for s in self.skills])
+            flow.route(*[s.build() for s in self.skills], prompt=self._router_prompt)
 
         for hook in self._after_hooks:
             flow.custom(hook)
