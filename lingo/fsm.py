@@ -47,7 +47,6 @@ class StateMachine(Node):
     def __init__(
         self,
         registry: Registry,
-        state_key: str = "fsm_status",
     ):
         """
         Args:
@@ -55,7 +54,6 @@ class StateMachine(Node):
             state_key: The key in context.state where the current status string is stored.
         """
         self.registry = registry
-        self.state_key = state_key
         self._states: dict[str, State] = {}
         self._initial_state: State | None = None
         self._current_state: State | None = None
