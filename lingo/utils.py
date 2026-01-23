@@ -138,7 +138,7 @@ class RenderStyle(BaseModel):
 
 
 def render(
-    data: BaseModel | dict,
+    data: BaseModel | dict | list,
     title: str | None = None,
     style: RenderStyle | None = None,
 ) -> str:
