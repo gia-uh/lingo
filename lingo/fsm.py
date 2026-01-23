@@ -8,7 +8,7 @@ from lingo.skills import Skill
 from lingo.flow import Node
 
 
-class StateChangeException(BaseException):
+class ChangeState(BaseException):
     """
     Control-flow exception raised when a state transition occurs.
     Inherits from BaseException so it isn't caught by standard 'except Exception' blocks
@@ -105,7 +105,7 @@ class StateMachine(Node):
             raise ValueError(f"State '{state.name}' is not registered with this FSM.")
 
         # Raise the signal to stop execution and bubble up to execute()
-        raise StateChangeException(state=state, restart=restart)
+        raise ChangeState(state=state, restart=restart)
 
     async def execute(self, context: Context, engine: Engine):
         """
@@ -137,7 +137,7 @@ class StateMachine(Node):
                     # If we finish without exception, we are done for this turn.
                     return
 
-                except StateChangeException as e:
+                except ChangeState as e:
                     # 3. Handle Transition Signal
                     self._current_state = e.state
 

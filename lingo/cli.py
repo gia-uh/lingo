@@ -22,7 +22,7 @@ async def run(lingo: Lingo, input_fn=None, output_fn=None):
     print("Name:", lingo.name)
     print("Description:", lingo.description)
 
-    if lingo.verbose:
+    if lingo._verbose:
         print("Mode: Verbose")
 
     print("\n[Press Ctrl+D to exit]\n")
@@ -52,7 +52,7 @@ async def run(lingo: Lingo, input_fn=None, output_fn=None):
         output_fn(repr(model))
         output_fn("\n--------------------------\n")
 
-    if lingo.verbose:
+    if lingo._verbose:
         lingo.llm._on_create = (
             tee(original_on_create, _verbose_on_create)
             if original_on_create
