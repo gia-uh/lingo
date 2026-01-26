@@ -131,7 +131,7 @@ class Lingo:
         if self._runner_task and not self._runner_task.done():
             # RESUME: Feed input to the waiting engine
             # Note: Engine.input() will handle appending this msg to the local context
-            await self._active_engine.put(msg)
+            await ensure(self._active_engine).put(msg)
         else:
             # START: Create new session
             context = Context(list(self.messages))

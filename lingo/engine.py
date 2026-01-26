@@ -70,6 +70,7 @@ class Engine:
     async def input(self) -> str:
         """
         Pauses the flow and waits for user input from the chat loop.
+        The result message is NOT automatically appended to the Context!
         """
         # Signal Lingo.chat that we are waiting
         await self._signal_queue.put(INPUT_SIGNAL)
@@ -82,6 +83,7 @@ class Engine:
     async def ask(self, context: Context, question: str) -> str:
         """
         Composite method: Replies with a question, then waits for input.
+        The result message is NOT automatically appended to the Context!
         """
         await self.reply(context, question)
         return await self.input()
