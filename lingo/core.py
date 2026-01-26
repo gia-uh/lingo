@@ -109,9 +109,7 @@ class Lingo:
         for hook in self._after_hooks:
             flow.custom(hook)
 
-        if len(flow.nodes) == 1:
-            # This is just the prepend system prompt node
-            # We must add at least a reply node
+        if not self.skills:
             flow.reply()
 
         return flow
