@@ -259,7 +259,7 @@ class Engine:
         """
         await self._signal_queue.get()
 
-    async def put(self, msg:str):
+    async def put(self, msg: str):
         """
         Put a message on the internal queue.
         Used to synchronize with input().

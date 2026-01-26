@@ -150,8 +150,7 @@ class Lingo:
         signal_task = asyncio.create_task(ensure(self._active_engine).wait())
 
         done, pending = await asyncio.wait(
-            [signal_task, self._runner_task],
-            return_when=asyncio.FIRST_COMPLETED
+            [signal_task, self._runner_task], return_when=asyncio.FIRST_COMPLETED
         )
 
         # Cleanup the signal waiter if it didn't fire (i.e., task finished)
