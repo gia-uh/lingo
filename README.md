@@ -31,7 +31,6 @@ It unifies three powerful paradigms in a single, typed architecture:
 
 ```bash
 pip install lingo-ai
-
 ```
 
 ### The "Hello World" (Stateful Wizard)
@@ -67,10 +66,7 @@ async def onboarding(ctx, eng):
 if __name__ == "__main__":
     from lingo.cli import loop
     loop(app)
-
 ```
-
----
 
 ## 🧠 The Three Modeling Paradigms
 
@@ -103,7 +99,6 @@ async def dashboard(ctx, eng):
 @app.skill
 async def run_workflow(ctx, eng):
     await fsm.execute(ctx, eng)
-
 ```
 
 ### 2. Reflexive Patterns (Event-Driven)
@@ -117,7 +112,6 @@ Use `@app.when` to define high-priority listeners that intercept messages *befor
 async def emergency_stop(ctx, eng):
     await eng.reply(ctx, "Stopping immediately.")
     eng.stop() # Terminates the flow and clears the stack
-
 ```
 
 ### 3. Structured Flows (Low-Level Graph)
@@ -143,7 +137,6 @@ complex_flow = (
         aggregator="Combine the research and draft into a final report."
     )
 )
-
 ```
 
 ## 📦 Architecture
