@@ -1,10 +1,4 @@
-"""
-The Engine class.
-
-This class holds the LLM-interacting logic, acting as the "behavior"
-layer that operates on the pure-state "Context" objects.
-"""
-
+import asyncio
 import json
 from pydantic import BaseModel, create_model
 from typing import Any, Literal, Self
@@ -21,6 +15,9 @@ from .prompts import (
 )
 
 
+INPUT_SIGNAL = object()
+
+
 class Engine:
     """
     Holds the LLM and tools, and performs all LLM-related
@@ -30,6 +27,10 @@ class Engine:
     def __init__(self, llm: LLM, tools: list[Tool] | None = None):
         self._llm = llm
         self._tools = list(tools or [])
+
+        # Communication channels for stateful sessions
+        self._input_queue = asyncio.Queue[str]()
+        self._signal_queue = asyncio.Queue()
 
     def scope(self, tools: list[Tool]) -> Self:
         """
@@ -65,6 +66,25 @@ class Engine:
         """
         call_messages = self._expand_content(context, *instructions)
         return await self._llm.chat(call_messages)
+
+    async def input(self) -> str:
+        """
+        Pauses the flow and waits for user input from the chat loop.
+        """
+        # Signal Lingo.chat that we are waiting
+        await self._signal_queue.put(INPUT_SIGNAL)
+
+        # Block until input arrives
+        user_text = await self._input_queue.get()
+
+        return user_text
+
+    async def ask(self, context: Context, question: str) -> str:
+        """
+        Composite method: Replies with a question, then waits for input.
+        """
+        await self.reply(context, question)
+        return await self.input()
 
     async def create[T: BaseModel](
         self, context: Context, model: type[T], *instructions: str | Message
@@ -229,3 +249,17 @@ class Engine:
         from .flow import StopFlow
 
         raise StopFlow()
+
+    async def wait(self):
+        """
+        Wait on the internal queue.
+        Used to sincronize with input().
+        """
+        await self._signal_queue.get()
+
+    async def put(self, msg:str):
+        """
+        Put a message on the internal queue.
+        Used to synchronize with input().
+        """
+        await self._signal_queue.put(msg)

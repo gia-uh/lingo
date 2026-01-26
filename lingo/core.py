@@ -1,5 +1,6 @@
-from typing import Callable, Coroutine, Iterator, Protocol
-from purely import Registry
+import asyncio
+from typing import Callable, Coroutine, Iterator, Protocol, Optional
+from purely import Registry, ensure
 from pydantic import BaseModel, Field, create_model
 
 from .skills import Skill
@@ -58,6 +59,11 @@ class Lingo:
         self._after_hooks: list[Callable] = []
         self._filters: dict[str, Flow] = {}
 
+        # Session State
+        self._runner_task: Optional[asyncio.Task] = None
+        self._active_engine: Optional[Engine] = None
+        self._active_context: Optional[Context] = None
+
     def before(self, func: Callable[[Context, Engine], Coroutine]):
         """
         Decorator to register a function to run BEFORE the main flow/skills.
@@ -87,7 +93,6 @@ class Lingo:
     def tool(self, func: Callable):
         """
         Decorator to register a function as a tool.
-        Automatically injects the LLM if necessary.
         """
         self.tools.append(t := tool(self.registry.inject(func)))
         return t
@@ -115,16 +120,67 @@ class Lingo:
         return flow
 
     async def chat(self, msg: str) -> Message:
+        """
+        Interacts with the bot.
+        Handles both starting new sessions and resuming paused ones.
+        """
+        # 1. Update Global History
         self.messages.append(Message.user(msg))
 
-        context = Context(list(self.messages))
-        engine = Engine(self.llm, self.tools)
-        flow = self._build_flow()
+        # 2. Determine Logic: Resume or Start
+        if self._runner_task and not self._runner_task.done():
+            # RESUME: Feed input to the waiting engine
+            # Note: Engine.input() will handle appending this msg to the local context
+            await self._active_engine.put(msg)
+        else:
+            # START: Create new session
+            context = Context(list(self.messages))
+            engine = Engine(self.llm, self.tools)
+            flow = self._build_flow()
 
-        await flow.execute(context, engine)
+            # Store active session components
+            self._active_engine = engine
+            self._active_context = context
+            self._runner_task = asyncio.create_task(flow.execute(context, engine))
 
-        for m in context.messages[len(self.messages) :]:
-            self.messages.append(m)
+        # 3. Wait for Bot Response (Signal or Completion)
+        # We wait for EITHER the signal that the bot is waiting for input (engine.input called)
+        # OR the task to finish completely.
+
+        signal_task = asyncio.create_task(ensure(self._active_engine).wait())
+
+        done, pending = await asyncio.wait(
+            [signal_task, self._runner_task],
+            return_when=asyncio.FIRST_COMPLETED
+        )
+
+        # Cleanup the signal waiter if it didn't fire (i.e., task finished)
+        if signal_task in pending:
+            signal_task.cancel()
+
+        # 4. Sync State and Return
+
+        # If the flow crashed, re-raise the exception
+        if self._runner_task.done() and (exc := self._runner_task.exception()):
+            # Clean up before raising
+            self._runner_task = None
+            self._active_engine = None
+            self._active_context = None
+            raise exc
+
+        # Check for new messages generated in the context
+        if self._active_context:
+            # We append only the NEW messages from the context to the global history
+            # The logic assumes strict append-only behavior in both lists
+            new_messages = self._active_context.messages[len(self.messages) :]
+            for m in new_messages:
+                self.messages.append(m)
+
+        # If the task finished cleanly, clear session state
+        if self._runner_task.done():
+            self._runner_task = None
+            self._active_engine = None
+            self._active_context = None
 
         return self.messages[-1]
 
