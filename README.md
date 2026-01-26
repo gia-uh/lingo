@@ -147,7 +147,7 @@ complex_flow = (
 
 ## 🤝 Contribution
 
-We welcome contributions! Please see [CONTRIBUTING.md](https://www.google.com/search?q=CONTRIBUTING.md) for details on how to set up your development environment and submit pull requests.
+We welcome contributions! Please see [CONTRIBUTING](CONTRIBUTING.md) for details on how to set up your development environment and submit pull requests.
 
 ## 📄 License
 
