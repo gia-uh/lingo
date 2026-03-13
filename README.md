@@ -1,154 +1,119 @@
-<p align="center"> <img src="https://github.com/user-attachments/assets/27a24307-cda0-4fa8-ba6c-9b5ca9b27efe" alt="lingo library logo" width="300"/> </p>
+# 🤖 Gemini CLI Opinionated Framework
 
-<p align="center"> <strong>A minimal, async-native, and unopinionated toolkit for modern LLM applications.</strong> </p>
+<div align="center">
 
-![PyPI - Version](https://img.shields.io/pypi/v/lingo-ai)
-![PyPi - Python Version](https://img.shields.io/pypi/pyversions/lingo-ai)
-![Github - Open Issues](https://img.shields.io/github/issues-raw/gia-uh/lingo)
-![PyPi - Downloads (Monthly)](https://img.shields.io/pypi/dm/lingo-ai)
-![Github - Commits](https://img.shields.io/github/commit-activity/m/gia-uh/lingo)
+[![Release](https://img.shields.io/github/v/release/apiad/starter?style=for-the-badge&color=blue)](https://github.com/apiad/starter/releases)
+[![License](https://img.shields.io/github/license/apiad/starter?style=for-the-badge&color=success)](LICENSE)
+[![Template](https://img.shields.io/badge/Repository-Template-blueviolet?style=for-the-badge&logo=github)](https://github.com/apiad/starter/generate)
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg?style=for-the-badge)](https://github.com/apiad/starter/graphs/commit-activity)
 
-> **Stop wiring graphs. Start modeling conversations.**
+**Transform how you work with AI agents.**
 
-Lingo is a lightweight, type-safe Python framework for building LLM-powered applications. It moves beyond generic "agents" and "chains" to focus on **Conversational Modeling**—the discipline of defining exactly how a system perceives, processes, and advances a dialogue state.
+*A cognitive partnership model that enforces rigorous engineering standards, strategic planning, and continuous validation.*
 
-It unifies three powerful paradigms in a single, typed architecture:
+#### 🚀 [**Check out the launch blog post!**](https://blog.apiad.net/p/how-im-using-ai-today)
 
-1.  **Procedural Skills** (Linear, script-like flows)
-2.  **Symbolic States** (Deterministic FSMs)
-3.  **Reflexive Patterns** (Event-driven guardrails)
+</div>
 
-## ⚡ Features
+---
 
-* **💾 Stateful by Default:** The Python stack *is* your state machine. Use `await engine.ask()` to pause execution and wait for user input naturally.
-* **🧠 Cognitive Architecture:** Mix rigid business rules (States) with flexible reasoning (Skills).
-* **🛡️ Type-Safe:** Built on Pydantic. All inputs, outputs, and tool calls are validated schemas.
-* **🌊 Low-Level Flow Control:** Direct access to the underlying `Flow` graph for complex orchestration (Fork/Join, Retry, Loops).
+## 🔥 Quick Start
 
-## 🚀 Quickstart
-
-### Installation
+The fastest way to bootstrap a new project or integrate the framework into an existing one is to run the following command in your terminal:
 
 ```bash
-pip install lingo-ai
+curl -fsSL https://apiad.github.io/starter/install.sh | bash
 ```
 
-### The "Hello World" (Stateful Wizard)
+This interactive script will:
+1.  **Validate** your environment (requires `git`, `node`, and a clean working tree).
+2.  **Clone** the latest framework components to a temporary location.
+3.  **Analyze** your current directory and propose a list of files to create or update.
+4.  **Prompt** for your explicit confirmation before applying any changes.
+5.  **Integrate** the `.gemini/` configuration and framework files (non-destructively).
+6.  **Commit** the changes automatically with a descriptive message.
 
-Lingo allows you to model conversations as linear scripts. You don't need to manage session IDs or database steps manually—variables persist in memory across turns.
+Once the installation is complete, run `gemini /onboard` to get an overview of the repository and start your first session.
 
-```python
-import asyncio
-from lingo import Lingo
+### 🏗️ Alternative: Manual Setup
 
-# Initialize the application
-app = Lingo("Wizard", description="A helpful setup wizard")
+If you prefer a manual setup:
 
-@app.skill
-async def onboarding(ctx, eng):
-    # 1. Output a message
-    await eng.reply(ctx, "Welcome to the system.")
+1. [Create a new project from this template](https://github.com/apiad/starter/generate).
+2. Follow the onboarding instructions in the generated repository.
 
-    # 2. PAUSE execution and wait for user input
-    # Lingo automatically suspends the stack here.
-    # The variable 'name' is preserved in memory when the user replies!
-    name = await eng.ask(ctx, "What is your name?")
+---
 
-    # 3. Resume and use context from previous turns
-    email = await eng.ask(ctx, f"Hi {name}, what is your email?")
+## 🧠 The Core Philosophy
 
-    # 4. Use structured decision making (LLM is forced to return bool)
-    if await eng.decide(ctx, f"Is {email} a valid corporate email address?"):
-        await eng.reply(ctx, "Registration complete.")
-    else:
-        await eng.reply(ctx, "Personal emails are not allowed.")
+This repository is a heavily customized and oppinionanted Gemini CLI agent, ready to be used in any situation. In this framework, the AI agent is not just a "code generator" or a "copilot". It is a **Senior Architect and Critical Thinking Partner**:
 
-if __name__ == "__main__":
-    from lingo.cli import loop
-    loop(app)
-```
+*   **🛡️ Critical Feedback First:** The agent is instructed to challenge unsafe, redundant, or poorly conceived ideas *before* writing a single line of code.
+*   **📋 Research -> Plan -> Execute:** Every non-trivial change follows a strict lifecycle. The agent first researches context, proposes a detailed plan, waits for your explicit approval, and only then begins implementation.
+*   **✅ Validation-Always:** The framework uses `make` as a source of truth. The agent is hooked into the `makefile` to ensure every change is validated (linted and tested) before being finalized.
 
-## 🧠 The Three Modeling Paradigms
+## 🛠️ The Project Lifecycle
 
-Lingo gives you the right abstraction for every type of logic.
+The `.gemini/commands/` directory defines specialized workflows that automate every phase of the development lifecycle:
 
-### 1. Symbolic States (Finite State Machine)
+### 🔍 Phase 1: Planning & Discovery
+*   **`/research <topic>`**: A deep, 3-phase investigation (Planning -> Data Gathering -> Reporting) that produces exhaustive Markdown reports in the `research/` directory. **Crucial for gathering technical requirements and state-of-the-art context.**
+*   **`/plan`**: The **Architectural Bridge**. This interactive workflow translates ideas into actionable execution plans:
+    *   **Phase 1 (Clarification):** The agent interviews you to resolve ambiguities before planning.
+    *   **Phase 2 (Agentic Analysis):** A specialized `planner` subagent scans the codebase and generates a detailed technical strategy.
+    *   **Phase 3 (Artifact Generation):** A persistent Markdown plan is saved in `plans/` (e.g., `plans/feature-x.md`).
+    *   **Phase 4 (Synchronization):** The plan is optionally linked to `TASKS.md` and can be synchronized with GitHub issues.
+*   **`/onboard`**: Summarizes the project's architecture, standards, and current state to quickly orient a new developer (or the agent itself).
 
-**Best for: Business Logic, Security Boundaries, Multi-Step Workflows.**
+### 🏗️ Phase 2: Development & Execution
+*   **`/issues`**: Your gateway to GitHub integration. It allows you to list, create, or update issues. Use `/issues work <number>` to transition an issue directly into a detailed research and planning mode.
+*   **`/debug`**: Activates a specialized `debugger` subagent to perform forensic root-cause analysis (RCA). It analyzes error logs, traces code execution, and generates structured reports to pinpoint bugs.
+*   **`/task`**: Manages the project roadmap in `TASKS.md`. Use it to `create` new tasks, `work` on existing ones (marks as In Progress), `report` on priorities, or `update` the roadmap.
+*   **`/scaffold`**: Initializes new project structures from scratch using modern, standard tooling (Python/uv, TS/npm, Rust/cargo, etc.) and sets up a compatible `makefile`.
 
-Use the `StateMachine` to enforce strict rules about allowed transitions.
+### 🧹 Phase 3: Content Generation, Maintenance & Documentation
+*   **`/draft`**: Multi-phase workflow to turn research and plans into detailed, high-quality technical documents or articles section-by-section.
+*   **`/revise`**: Uses the `editor` subagent to perform structural and linguistic audits based on the project's style guide.
+*   **`/maintenance`**: Performs a deep scan of the codebase to identify technical debt, refactoring opportunities, and areas to improve test coverage.
+*   **`/docs`**: Analyzes the codebase and journals to generate or update comprehensive project documentation in the `docs/` folder.
+*   **`/cron`**: Manages repetitive background tasks (e.g., health checks, automated reports) using **systemd user timers**.
 
-```python
-from lingo.fsm import StateMachine
+### 🚀 Phase 4: Shipping & Quality
+*   **`/commit`**: Analyzes all uncommitted changes, groups them into logical features or fixes, and guides you through committing them individually using **Conventional Commits**.
+*   **`/release`**: Automates the final shipping steps: running tests, determining the next version (semver), updating the `CHANGELOG.md`, and tagging the release.
 
-# 1. Initialize the FSM with the bot's registry
-fsm = StateMachine(app.registry)
+## 🔄 Common Use Cases
 
-@fsm.state
-async def login(ctx, eng):
-    await eng.reply(ctx, "Please log in.")
-    # Deterministic transition to the next state
-    fsm.goto(dashboard, restart=True)
+This framework shines when you combine these commands into cohesive workflows:
 
-@fsm.state
-async def dashboard(ctx, eng):
-    await eng.reply(ctx, "Welcome to your dashboard.")
-    # Logic restricted to this state...
+### 1️⃣ Feature Development Workflow
+1.  **Discover:** Run `/research` to understand the domain or library.
+2.  **Plan:** Use `/plan` to turn requirements into a technical roadmap in `plans/`.
+3.  **Track:** Link the plan to `TASKS.md` using `/plan`'s built-in sync.
+4.  **Implement:** Use `/task work` to mark progress and begin coding.
+5.  **Refine:** Run `/docs` to ensure your changes are well-documented.
+6.  **Ship:** Use `/commit` for clean history and `/release` for a new version tag.
 
-# Register the FSM as a skill
-@app.skill
-async def run_workflow(ctx, eng):
-    await fsm.execute(ctx, eng)
-```
+### 2️⃣ Bug Resolution Workflow
+1.  **Triage:** Use `/issues summary` to see what needs attention.
+2.  **Analyze:** Use `/debug` to activate the forensic subagent and perform root-cause analysis (RCA).
+3.  **Fix:** Develop the fix based on the RCA and validate with `make`.
+4.  **Sync:** Update the issue with the resolution details using `/issues`.
 
-### 2. Reflexive Patterns (Event-Driven)
+### 3️⃣ Content Creation Workflow
+1.  **Research:** Use `/research` to gather data into an executive report.
+2.  **Draft:** Run `/draft` to build an outline and expand it into a full article.
+3.  **Revise:** Use `/revise` for step-by-step style guide-driven audits and refinements.
 
-**Best for: Guardrails, Interruptions, Global Commands.**
+## ⚓ The Hook System
 
-Use `@app.when` to define high-priority listeners that intercept messages *before* they reach skills.
+The framework uses a robust hook system (`.gemini/hooks/`) that synchronizes the agent with your project state:
 
-```python
-@app.when("User wants to quit or cancel the operation")
-async def emergency_stop(ctx, eng):
-    await eng.reply(ctx, "Stopping immediately.")
-    eng.stop() # Terminates the flow and clears the stack
-```
+*   **`session.py`**: Initializes the environment and provides a project summary.
+*   **`journal.py`**: Ensures a journal entry exists for the current date (`journal/YYYY-MM-DD.md`).
+*   **`make.py`**: Automatically runs `make` after critical agent actions to prevent regressions.
+*   **`cron.py`**: Synchronizes `cron.toml` tasks with **systemd user timers**.
 
-### 3. Structured Flows (Low-Level Graph)
+## 📄 License & Contribution
 
-**Best for: Parallel Processing, Retries, Complex Orchestration.**
-
-You can drop down to the `Flow` API to build complex execution graphs explicitly.
-
-```python
-from lingo import Flow
-
-# Define two sub-flows
-research = Flow("Research").reply("Searching for info...")
-draft = Flow("Draft").reply("Drafting content...")
-
-# Build a flow that runs them in parallel (Fork)
-# and summarizes the result
-complex_flow = (
-    Flow("ParallelWorker")
-    .fork(
-        research,
-        draft,
-        aggregator="Combine the research and draft into a final report."
-    )
-)
-```
-
-## 📦 Architecture
-
-* **`Context`**: Mutable ledger of the conversation history.
-* **`Engine`**: The "actuator" that drives the LLM. It exposes methods like `.ask()`, `.decide()`, `.choose()`, and `.create()`.
-* **`Flow`**: The underlying graph representation of all skills.
-
-## 🤝 Contribution
-
-We welcome contributions! Please see [CONTRIBUTING](CONTRIBUTING.md) for details on how to set up your development environment and submit pull requests.
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. All contributions are welcome!
