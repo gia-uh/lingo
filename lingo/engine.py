@@ -25,26 +25,49 @@ class Engine:
     """
 
     def __init__(self, llm: LLM, tools: list[Tool] | None = None):
+        """
+        Initializes the Engine with an LLM and an optional list of tools.
+
+        Args:
+            llm: The LLM client to use for operations.
+            tools: An optional list of Tool objects available to the engine.
+        """
         self._llm = llm
         self._tools = list(tools or [])
 
         # Communication channels for stateful sessions
-        self._input_queue = asyncio.Queue[str]()
-        self._signal_queue = asyncio.Queue()
+        self._input_queue: asyncio.Queue[str] = asyncio.Queue()
+        self._signal_queue: asyncio.Queue = asyncio.Queue()
 
     def scope(self, tools: list[Tool]) -> Self:
         """
         Returns a new Engine instance with the additional tools available.
         This creates a lightweight copy, ensuring that parallel flows
         do not interfere with each other's tool sets.
+
+        Args:
+            tools: A list of Tool objects to add to the new scoped engine.
+
+        Returns:
+            A new Engine instance with the expanded tool set.
         """
         # Combine current tools with new tools
-        # (You might want to add logic here to handle duplicate names if needed)
         new_tool_set = self._tools + tools
         return self.__class__(self._llm, new_tool_set)
 
-    def _expand_content(self, context: Context, *instructions) -> list[Message]:
-        """Helper to combine context messages with temporary instructions."""
+    def _expand_content(
+        self, context: Context, *instructions: str | Message | BaseModel
+    ) -> list[Message]:
+        """
+        Helper to combine context messages with temporary instructions.
+
+        Args:
+            context: The conversation context.
+            *instructions: Additional instructions to prepend to the LLM call.
+
+        Returns:
+            A list of Message objects combining history and instructions.
+        """
         # Get messages from the state object
         all_messages = list(context.messages)
 
@@ -63,6 +86,13 @@ class Engine:
     async def reply(self, context: Context, *instructions: str | Message) -> Message:
         """
         Calls the LLM with current context + temporary instructions.
+
+        Args:
+            context: The conversation context.
+            *instructions: Additional instructions or system messages for the LLM.
+
+        Returns:
+            The assistant Message response from the LLM.
         """
         call_messages = self._expand_content(context, *instructions)
         return await self._llm.chat(call_messages)
@@ -71,6 +101,9 @@ class Engine:
         """
         Pauses the flow and waits for user input from the chat loop.
         The result message is NOT automatically appended to the Context!
+
+        Returns:
+            The raw string input from the user.
         """
         # Signal Lingo.chat that we are waiting
         await self._signal_queue.put(INPUT_SIGNAL)
@@ -83,21 +116,36 @@ class Engine:
     async def ask(self, context: Context, question: str) -> str:
         """
         Composite method: Replies with a question, then waits for input.
-        The result message is NOT automatically appended to the Context!
+        The result message IS automatically appended to the Context!
+
+        Args:
+            context: The conversation context.
+            question: The question to ask the user.
+
+        Returns:
+            The raw string input from the user.
         """
-        await self.reply(context, question)
+        response = await self.reply(context, question)
+        context.append(response)
         return await self.input()
 
     async def create[T: BaseModel](
         self, context: Context, model: type[T], *instructions: str | Message
     ) -> T:
         """
-        Calls LLM to create a Pydantic model.
-        (Fixes Issue #2 by removing Pydantic-to-code generation)
+        Calls LLM to create a structured Pydantic model.
+
+        Args:
+            context: The conversation context.
+            model: The Pydantic model class to instantiate.
+            *instructions: Additional instructions for the creation process.
+
+        Returns:
+            An instance of the requested Pydantic model.
         """
         call_messages = self._expand_content(context, *instructions)
 
-        # Addressing Issue #2: Using a simplified prompt without code generation
+        # Using a simplified prompt without code generation
         prompt_str = DEFAULT_CREATE_PROMPT.format(
             type=model.__name__,
             docs=model.__doc__ or "N/A",
@@ -106,55 +154,114 @@ class Engine:
 
         call_messages.append(Message.system(prompt_str))
 
-        # This will now use the simplified prompt
         return await self._llm.create(model, call_messages)
 
-    # --- Internal helper for CoT models ---
-    def _create_cot_model(self, name: str, result_cls) -> type[BaseModel]:
-        """Creates a dynamic Pydantic model for Chain-of-Thought reasoning."""
+    # --- Internal helpers for structured decision making ---
+
+    def _create_cot_model(self, name: str, result_cls: Any) -> type[BaseModel]:
+        """
+        Creates a dynamic Pydantic model for Chain-of-Thought reasoning.
+
+        Args:
+            name: The name of the generated model class.
+            result_cls: The type of the 'result' field in the model.
+
+        Returns:
+            A new Pydantic model class with 'reasoning' and 'result' fields.
+        """
         return create_model(name, reasoning=(str, ...), result=(result_cls, ...))
+
+    async def _structured_choice[T](
+        self,
+        context: Context,
+        name: str,
+        result_cls: Any,
+        prompt_template: str,
+        prompt_kwargs: dict[str, Any],
+        *instructions: str | Message,
+    ) -> Any:
+        """
+        Internal helper for making a structured choice using Chain-of-Thought reasoning.
+
+        Args:
+            context: The conversation context.
+            name: Name for the dynamic CoT model.
+            result_cls: The type of the result to be selected.
+            prompt_template: The template string for the system prompt.
+            prompt_kwargs: Keywords to format the prompt template.
+            *instructions: Additional instructions for the LLM.
+
+        Returns:
+            The 'result' field from the LLM's structured response.
+        """
+        model_cls = self._create_cot_model(name, result_cls)
+        prompt = prompt_template.format(
+            format=model_cls.model_json_schema(), **prompt_kwargs
+        )
+        call_messages = self._expand_content(
+            context, *instructions, Message.system(prompt)
+        )
+
+        response = await self.create(context, model_cls, *call_messages)
+        return response.result
 
     async def choose[T](
         self, context: Context, options: list[T], *instructions: str | Message
     ) -> T:
         """
         Calls the LLM to choose one item from a list of options.
+
+        Args:
+            context: The conversation context.
+            options: A list of objects to choose from.
+            *instructions: Additional instructions to guide the choice.
+
+        Returns:
+            The selected option from the input list.
         """
         # Create a mapping of string representations to original objects
         mapping = {str(option): option for option in options}
         enum_type = Literal[*mapping.keys()]
-        model_cls = self._create_cot_model("Choose", enum_type)
 
-        prompt = DEFAULT_CHOOSE_PROMPT.format(
-            options="\n".join([f"- {opt}" for opt in mapping.keys()]),
-            format=model_cls.model_json_schema(),
-        )
-        call_messages = self._expand_content(
-            context, *instructions, Message.system(prompt)
+        result = await self._structured_choice(
+            context,
+            "Choose",
+            enum_type,
+            DEFAULT_CHOOSE_PROMPT,
+            {"options": "\n".join([f"- {opt}" for opt in mapping.keys()])},
+            *instructions,
         )
 
-        response = await self.create(context, model_cls, *call_messages)
-        return mapping[response.result]  # type: ignore
+        return mapping[result]  # type: ignore
 
     async def decide(self, context: Context, *instructions: str | Message) -> bool:
         """
         Calls the LLM to make a True/False decision.
-        """
-        model_cls = self._create_cot_model("Decide", bool)
-        prompt = DEFAULT_DECIDE_PROMPT.format(format=model_cls.model_json_schema())
-        call_messages = self._expand_content(
-            context, *instructions, Message.system(prompt)
-        )
 
-        response = await self.create(context, model_cls, *call_messages)
-        return response.result  # type: ignore
+        Args:
+            context: The conversation context.
+            *instructions: Instructions describing the decision to be made.
+
+        Returns:
+            A boolean representing the LLM's decision.
+        """
+        return await self._structured_choice(
+            context, "Decide", bool, DEFAULT_DECIDE_PROMPT, {}, *instructions
+        )
 
     async def equip(self, context: Context, *tools: Tool) -> Tool:
         """
         Calls the LLM to select the most appropriate Tool
         from the available tool list.
+
+        Args:
+            context: The conversation context.
+            *tools: Optional specific tools to choose from. Defaults to engine's tools.
+
+        Returns:
+            The selected Tool object.
         """
-        _tools = list(tools) or self._tools  # Use engine's tools if none passed
+        _tools = list(tools) or self._tools
 
         if not _tools:
             raise ValueError("No tools available.")
@@ -163,28 +270,39 @@ class Engine:
             return _tools[0]
 
         tool_map = {tool.name: tool for tool in _tools}
-
-        # enum_type = Enum("ToolChoices", {t: t for t in tool_map.keys()})
         enum_type = Literal[*tool_map.keys()]
-        model_cls = self._create_cot_model("Equip", enum_type)
 
-        prompt = DEFAULT_EQUIP_PROMPT.format(
-            tools="\n".join([f"- {t.name}: {t.description}" for t in _tools]),
-            format=model_cls.model_json_schema(),
+        result = await self._structured_choice(
+            context,
+            "Equip",
+            enum_type,
+            DEFAULT_EQUIP_PROMPT,
+            {
+                "tools": "\n".join([f"- {t.name}: {t.description}" for t in _tools]),
+            },
         )
-        call_messages = self._expand_content(context, Message.system(prompt))
 
-        response = await self.create(context, model_cls, *call_messages)
-        return tool_map[response.result]  # type: ignore
+        return tool_map[result]  # type: ignore
 
     async def invoke(
-        self, context: Context, tool: Tool, *instructions: str | Message, **kwargs
+        self, context: Context, tool: Tool, *instructions: str | Message, **kwargs: Any
     ) -> ToolResult:
         """
+        Infers parameters for a tool, executes it, and returns the result.
+
         1. Calls the LLM to generate parameters for the given Tool.
-        2. Merges with **kwargs.
+        2. Merges with provided **kwargs.
         3. Executes the Tool.
         4. Returns a ToolResult (with data or error).
+
+        Args:
+            context: The conversation context.
+            tool: The tool to invoke.
+            *instructions: Additional instructions for parameter inference.
+            **kwargs: Manual parameter overrides.
+
+        Returns:
+            A ToolResult object containing the output or error.
         """
         try:
             all_params = await self.infer(context, tool, *instructions, **kwargs)
@@ -196,16 +314,22 @@ class Engine:
             return ToolResult(tool=tool.name, error=str(e))
 
     async def infer(
-        self, context: Context, tool: Tool, *instructions: str | Message, **kwargs
+        self, context: Context, tool: Tool, *instructions: str | Message, **kwargs: Any
     ) -> dict[str, Any]:
         """
-        Infers parameters for a given tool, and returns a dictionary with
-        all the parameters. Can be passed a list of custom parameter values
-        if you want to fix some of them.
+        Infers parameters for a given tool using the LLM.
+
+        Args:
+            context: The conversation context.
+            tool: The tool whose parameters need to be inferred.
+            *instructions: Additional instructions for inference.
+            **kwargs: Manual parameter overrides.
+
+        Returns:
+            A dictionary of inferred and overridden parameters.
         """
         parameters: dict[str, Any] = tool.parameters()
 
-        # --- Fix for Issue #4 ---
         # 1. Create a Pydantic model for the *entire* set of parameters
         param_fields = {name: (p_type, ...) for name, p_type in parameters.items()}
         model_cls: type[BaseModel] = create_model(tool.name, **param_fields)
@@ -235,33 +359,42 @@ class Engine:
 
     async def act(self, context: Context, *tools: Tool) -> ToolResult:
         """
-        Shortcut for equip/invoke. Selects a tool and runs it immediately,
-        returning the tool result.
+        Shortcut for equip/invoke. Selects a tool and runs it immediately.
+
+        Args:
+            context: The conversation context.
+            *tools: Tools available for selection.
+
+        Returns:
+            The result of the tool execution.
         """
         tool = await self.equip(context, *tools)
         return await self.invoke(context, tool)
 
-    def stop(self):
+    def stop(self) -> None:
         """
-        Stops the current flow by raising `StopFlow`, which is
-        captured by Flow.execute(...).
+        Stops the current flow by raising `StopFlow`.
 
-        DO NOT USE outside a Flow `execute` method.
+        This is caught by Flow.execute(...) to terminate the workflow early.
+        DO NOT USE outside a Flow `execute` method or a skill.
         """
         from .flow import StopFlow
 
         raise StopFlow()
 
-    async def wait(self):
+    async def wait(self) -> None:
         """
-        Wait on the internal queue.
-        Used to sincronize with input().
+        Wait on the internal signal queue.
+        Used by the main loop to wait for the engine to signal it needs input.
         """
         await self._signal_queue.get()
 
-    async def put(self, msg: str):
+    async def put(self, msg: str) -> None:
         """
-        Put a message on the internal queue.
-        Used to synchronize with input().
+        Put a message on the internal input queue.
+        Used by the main loop to provide user input to a waiting engine.
+
+        Args:
+            msg: The user input message.
         """
-        await self._signal_queue.put(msg)
+        await self._input_queue.put(msg)

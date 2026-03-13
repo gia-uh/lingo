@@ -20,6 +20,7 @@ Put done tasks into the Archive.
 
 ## Archive
 
+- [x] Fix message persistence in `Engine` and tests to prevent infinite loop (2026-03-13) (See plan: plans/fix-test-loop.md)
 - [x] Update `install.sh` to be served via GitHub Pages and update all references to use the new URL. (2026-03-11)
 - [x] Create comprehensive User Guide (`docs/user-guide.md`) based on "The Architect in the Machine" philosophy. (2026-03-11) (See plan: plans/user-guide-integration.md)
 - [x] Refine `/plan` command to strictly enforce a non-execution mandate for generated plans. (2026-03-11)
