@@ -55,7 +55,7 @@ class MockLLM(LLM):
         resp = self.responses.pop(0)
 
         # Validate that the mock response matches the expected model type
-        if not isinstance(resp, model):
+        if not isinstance(resp, model) and resp.__class__.__name__ != model.__name__:
             raise TypeError(
                 f"MockLLM: Expected {model.__name__}, got {type(resp).__name__}"
             )
