@@ -1,9 +1,8 @@
 import os
 import inspect
-import functools
 import base64
 import mimetypes
-from typing import Any, Callable, Literal, Union, Self
+from typing import Any, Callable, Literal, Union
 from pydantic import BaseModel, Field
 import openai
 

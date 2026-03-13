@@ -1,4 +1,3 @@
-import asyncio
 from lingo import Lingo, Context, Engine
 from lingo.cli import loop
 from lingo.llm import Message

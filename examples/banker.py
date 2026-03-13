@@ -82,7 +82,7 @@ async def withdraw(ammount: int) -> dict:
     """
     try:
         return dict(balance=account.withdraw(ammount), withdrawn=ammount)
-    except:
+    except Exception:
         return dict(error="Insufficient funds.", balance=account.balance)
 
 

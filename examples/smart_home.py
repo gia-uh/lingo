@@ -1,6 +1,5 @@
-import asyncio
 import dotenv
-from lingo import Lingo, Context, Engine, Message
+from lingo import Lingo, Context, Engine
 from lingo.cli import loop
 
 # Load environment variables (e.g. OPENAI_API_KEY)

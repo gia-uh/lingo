@@ -5,6 +5,7 @@ Hook to log agent model output to the session log file for debugging and auditin
 This hook is triggered after the model response and processes JSON from stdin.
 The 'decision' is always 'allow'.
 """
+
 import sys
 import os
 import json
@@ -13,10 +14,11 @@ import json
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import utils
 
+
 def main():
     """
     Main entry point for the log model output hook.
-    
+
     Reads candidate model responses from stdin and appends them to the log file.
     """
     try:
@@ -28,7 +30,7 @@ def main():
         data = json.loads(input_data)
         llm_response = data.get("llm_response", {})
         candidates = llm_response.get("candidates", [])
-        
+
         if candidates:
             candidate = candidates[0]
             content_obj = candidate.get("content", {})
@@ -44,7 +46,7 @@ def main():
                         content_to_log += part["text"]
                 if finish_reason:
                     content_to_log += "\n\n"
-                
+
                 utils.log_message(content_to_log, mode="a")
 
         utils.send_hook_decision("allow")
@@ -52,6 +54,7 @@ def main():
     except Exception:
         # Failsafe: always allow if something goes wrong
         utils.send_hook_decision("allow")
+
 
 if __name__ == "__main__":
     main()

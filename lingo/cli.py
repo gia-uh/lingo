@@ -28,11 +28,14 @@ async def run(lingo: Lingo, input_fn=None, output_fn=None):
     print("\n[Press Ctrl+D to exit]\n")
 
     if input_fn is None:
-        input_fn = lambda: input(">>> ")
+
+        def input_fn():
+            return input(">>> ")
 
     if output_fn is None:
         # Default output_fn just takes a string
-        output_fn = lambda token: print(token, end="", flush=True)
+        def output_fn(token):
+            return print(token, end="", flush=True)
 
     # The handler is simplified, as it only receives strings
     cli_token_handler = output_fn

@@ -1,7 +1,6 @@
 # tests/mocks.py
 
-import asyncio
-from typing import Any, List, Optional, Union
+from typing import Any, List, Optional
 from pydantic import BaseModel
 from lingo.llm import LLM, Message, Usage
 

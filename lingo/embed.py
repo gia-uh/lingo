@@ -1,5 +1,5 @@
 import os
-from typing import overload, Any
+from typing import overload
 import openai
 
 
