@@ -1,50 +1,47 @@
 import yaml
 import contextlib
 import copy
-from typing import Any, Type, Self
+from typing import Any, Type, Self, Iterator
 from pydantic import BaseModel, ValidationError
 
 
 class State[T: BaseModel](dict):
     """
-    A smart dictionary for conversation state.
+    A smart dictionary for managing conversation and application state.
 
     Features:
-    - **Attribute Access**: Use `state.count` instead of `state['count']`.
-    - **Recursion Safe**: Strict guards on magic methods.
-    - **Transaction Safety**: Use `atomic()` and `fork()` for rollbacks.
+    - **Attribute Access**: Access keys as attributes (e.g., `state.count` instead of `state['count']`).
+    - **Pydantic Integration**: Optionally validate state against a Pydantic schema.
+    - **Transaction Safety**: Use `atomic()` for rollback on error, or `fork()` for temporary modifications.
+    - **Prompt Ready**: Easily render state to YAML for injection into LLM prompts.
     """
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, **kwargs: Any) -> None:
         """
-        Intervention to make Pydantic-style defaults work with Dict storage.
-        We strip assignments like `score = 0` from the class so they don't block
-        __getattr__, and store them in `_class_defaults` to be applied in __init__.
+        Customizes subclass creation to support Pydantic-style field defaults.
+
+        Assignments like `score: int = 0` are moved from the class dictionary to
+        an internal `_class_defaults` map, ensuring that instance-level attribute
+        access triggers `__getattr__` correctly.
         """
         super().__init_subclass__(**kwargs)
 
         defaults = {}
-        # Iterate over class dict to find assigned values
         for k in list(cls.__dict__.keys()):
             if k.startswith("_"):
                 continue
 
             v = cls.__dict__[k]
-            # Skip methods, properties, and descriptors
             if callable(v) or hasattr(v, "__get__"):
                 continue
 
-            # It's a default value (e.g. score: int = 0)
             defaults[k] = v
-            # Remove from class so instance access triggers __getattr__
             delattr(cls, k)
 
-        # Merge with parent defaults for inheritance support
         parent_defaults = getattr(cls, "_class_defaults", {})
         final_defaults = parent_defaults.copy()
         final_defaults.update(defaults)
 
-        # Use object.__setattr__ to avoid any interference
         type.__setattr__(cls, "_class_defaults", final_defaults)
 
     def __init__(
@@ -52,62 +49,90 @@ class State[T: BaseModel](dict):
         data: dict | None = None,
         schema: Type[T] | None = None,
         shared_keys: set[str] | None = None,
-        **kwargs,
-    ):
-        # 1. Gather all data sources
-        # Priority: kwargs > data > subclass_defaults
+        **kwargs: Any,
+    ) -> None:
+        """
+        Initializes the State.
+
+        Args:
+            data: Initial dictionary of data.
+            schema: Optional Pydantic model for validation.
+            shared_keys: Keys that should be shared by reference during cloning.
+            **kwargs: Initial data passed as keyword arguments.
+        """
         final_data = getattr(self.__class__, "_class_defaults", {}).copy()
         if data:
             final_data.update(data)
         final_data.update(kwargs)
 
-        # 2. Initialize dict
         super().__init__(final_data)
 
-        # 3. Setup internals (bypass __setattr__)
         object.__setattr__(self, "_schema", schema)
         object.__setattr__(self, "_shared_keys", shared_keys or set())
 
-        # 4. Validate
         if self._schema:
             self.validate()
 
-    def validate(self):
-        """Validates the current state against the Pydantic schema."""
+    def validate(self) -> None:
+        """
+        Validates the current dictionary content against the assigned Pydantic schema.
+
+        Raises:
+            ValueError: If validation fails.
+        """
         if self._schema:
             try:
-                # We validate by constructing the model from the dict content
                 validated = self._schema(**self).model_dump()
                 self.update(validated)
             except ValidationError as e:
                 raise ValueError(f"State validation failed: {e}")
 
     def __getattr__(self, key: str) -> Any:
-        """Enables `state.key` access."""
-        # CRITICAL FIX: Immediately fail for private/magic methods.
-        # This prevents infinite recursion when pickling/copying checks for __getstate__, etc.
+        """
+        Enables attribute-style access to dictionary keys.
+
+        Args:
+            key: The attribute name.
+
+        Returns:
+            The value associated with the key.
+
+        Raises:
+            AttributeError: If the key does not exist or is private.
+        """
         if key.startswith("_"):
             raise AttributeError(key)
 
         try:
             return self[key]
         except KeyError:
-            # Must raise AttributeError, not KeyError, for getattr protocol
             raise AttributeError(
                 f"'{self.__class__.__name__}' object has no attribute '{key}'"
             )
 
-    def __setattr__(self, key: str, value: Any):
-        """Enables `state.key = value` assignment."""
-        # Private attributes go directly to the instance's __dict__
+    def __setattr__(self, key: str, value: Any) -> None:
+        """
+        Enables attribute-style assignment.
+
+        Args:
+            key: The attribute name.
+            value: The value to assign.
+        """
         if key.startswith("_"):
             object.__setattr__(self, key, value)
-        # Public attributes go to the dictionary content
         else:
             self[key] = value
 
-    def __delattr__(self, key: str):
-        """Enables `del state.key`."""
+    def __delattr__(self, key: str) -> None:
+        """
+        Enables attribute-style deletion.
+
+        Args:
+            key: The attribute name.
+
+        Raises:
+            AttributeError: If the key does not exist.
+        """
         if key.startswith("_"):
             object.__delattr__(self, key)
         else:
@@ -116,10 +141,10 @@ class State[T: BaseModel](dict):
             except KeyError:
                 raise AttributeError(key)
 
-    # --- Copying & Serialization Logic ---
-
     def _smart_copy(self) -> dict:
-        """Deep copies data, preserving shared keys by reference."""
+        """
+        Internal helper to deep-copy data while preserving shared keys by reference.
+        """
         new_data = {}
         for k, v in self.items():
             if k in self._shared_keys:
@@ -129,28 +154,29 @@ class State[T: BaseModel](dict):
         return new_data
 
     def clone(self) -> Self:
-        """Returns an independent copy of the State (for parallel branches)."""
-        new_state = self.__class__(
+        """
+        Returns an independent copy of the State.
+        Useful for branching conversation history in parallel flows.
+        """
+        return self.__class__(
             self._smart_copy(), schema=self._schema, shared_keys=self._shared_keys
         )
-        return new_state
 
-    def __copy__(self):
-        """Support for copy.copy()"""
+    def __copy__(self) -> Self:
+        """Standard copy support."""
         return self.clone()
 
-    def __deepcopy__(self, memo):
-        """Support for copy.deepcopy()"""
-        # We manually implement this to use our smart copy logic
-        # and avoid recursive pickling checks.
+    def __deepcopy__(self, memo: Any) -> Self:
+        """Standard deepcopy support, using smart copy logic."""
         return self.clone()
-
-    # --- Context Managers ---
 
     @contextlib.contextmanager
-    def atomic(self):
+    def atomic(self) -> Iterator[Self]:
         """
-        Savepoint: Rollback changes only if an exception occurs.
+        Transactional context manager.
+
+        Rolls back all changes made within the block if an exception occurs.
+        If a schema is present, validates the final state before completing.
         """
         snapshot = self._smart_copy()
         try:
@@ -163,9 +189,12 @@ class State[T: BaseModel](dict):
             raise
 
     @contextlib.contextmanager
-    def fork(self):
+    def fork(self) -> Iterator[Self]:
         """
-        Temporary Scope: Always rollback changes on exit.
+        Scoped context manager.
+
+        Always rolls back all changes made within the block upon exit, regardless
+        of whether an exception occurred. Useful for speculative execution.
         """
         snapshot = self._smart_copy()
         try:
@@ -177,22 +206,16 @@ class State[T: BaseModel](dict):
     def render(self, *keys: str) -> str:
         """
         Returns a clean YAML string representation of the state.
-        Useful for injecting state data into prompt contexts.
 
-        Usage:
-            context.append(Message.system(f"CURRENT STATE:\n{state.render('score', 'history')}"))
+        Args:
+            *keys: Optional specific keys to include. If empty, all keys are rendered.
+
+        Returns:
+            A YAML-formatted string.
         """
-
-        # 1. Filter data
         if keys:
-            # Only include keys that exist to avoid KeyErrors, or let it crash if strictness is preferred.
-            # Here we skip missing keys to be safe for prompting.
             data = {k: self[k] for k in keys if k in self}
         else:
-            # Convert to plain dict to avoid YAML object tags
             data = dict(self)
 
-        # 2. Render
-        # default_flow_style=False -> Uses block style (lists/dicts are expanded)
-        # sort_keys=False -> Preserves insertion order (better for context logic)
         return yaml.safe_dump(data, default_flow_style=False, sort_keys=False).strip()

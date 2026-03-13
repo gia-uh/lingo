@@ -14,6 +14,14 @@ from .tools import Tool
 
 
 class StopFlow[T](BaseException):
+    """
+    Exception raised to immediately stop the execution of a Flow.
+
+    Attributes:
+        reason: An optional string explaining why the flow was stopped.
+        default: An optional default value to return as the flow's result.
+    """
+
     def __init__(self, reason: str | None = None, default: T | None = None):
         self.reason = reason
         self.default = default
@@ -33,6 +41,13 @@ class Node[T](abc.ABC):
         """
         Executes the node's logic on the given mutable context,
         using the engine to perform LLM operations.
+
+        Args:
+            context: The conversation history and state.
+            engine: The LLM engine to perform operations.
+
+        Returns:
+            The result of the node's execution, of type T.
         """
         pass
 
@@ -41,7 +56,9 @@ class Node[T](abc.ABC):
 
 
 class Append(Node[None]):
-    """A Leaf node that appends a message to the context."""
+    """
+    A Leaf node that appends a message to the context.
+    """
 
     def __init__(self, msg: Message):
         self.msg = msg
@@ -51,7 +68,9 @@ class Append(Node[None]):
 
 
 class Prepend(Node[None]):
-    """A Leaf node that prepends a message to the context."""
+    """
+    A Leaf node that prepends a message to the context.
+    """
 
     def __init__(self, msg: Message):
         self.msg = msg
@@ -77,8 +96,7 @@ class Reply(Node[str]):
 
 class Decide(Node[bool]):
     """
-    A leaf node that returns True or False to a given
-    prompt.
+    A leaf node that returns True or False based on an LLM decision.
     """
 
     def __init__(self, prompt: str):
@@ -90,7 +108,7 @@ class Decide(Node[bool]):
 
 class Choose[T](Node[T]):
     """
-    A leaf node that returns one of several items.
+    A leaf node that returns one item from a list of options using the LLM.
     """
 
     def __init__(self, prompt: str, *options: T):
@@ -104,7 +122,8 @@ class Choose[T](Node[T]):
 class Act(Node[Any]):
     """
     A Leaf node that performs the equip -> invoke logic for tools.
-    It selects the best tool, runs it, and adds the ToolResult
+
+    It selects the best tool from a list, runs it, and adds the ToolResult
     to the context as a tool message.
     """
 
@@ -113,7 +132,7 @@ class Act(Node[Any]):
             raise ValueError("Invoke node must be initialized with at least one Tool.")
         self.tools = tools
 
-    async def execute(self, context: Context, engine: Engine):
+    async def execute(self, context: Context, engine: Engine) -> Any:
         selected_tool = await engine.equip(context, *self.tools)
         tool_result = await engine.invoke(context, selected_tool)
         context.append(Message.tool(tool_result.model_dump()))
@@ -128,7 +147,9 @@ class NoOp(Node[None]):
 
 
 class Create[T: BaseModel](Node[T]):
-    """A leaf node to create a custom object."""
+    """
+    A leaf node to create a structured Pydantic object using the LLM.
+    """
 
     def __init__(self, model: Type[T], *instructions: Message | str) -> None:
         self.model = model
@@ -142,7 +163,7 @@ class Create[T: BaseModel](Node[T]):
 
 class FunctionalNode(Node):
     """
-    A wrapper Node that executes a user-provided function.
+    A wrapper Node that executes a user-provided coroutine function.
     """
 
     def __init__(self, func: Callable[[Context, Engine], Coroutine]):
@@ -151,7 +172,7 @@ class FunctionalNode(Node):
 
         self.func = func
 
-    async def execute(self, context: Context, engine: Engine):
+    async def execute(self, context: Context, engine: Engine) -> Any:
         return await self.func(context, engine)
 
 
@@ -161,15 +182,17 @@ class FunctionalNode(Node):
 class Sequence[T](Node[T]):
     """
     A Composite node that holds an ordered list of child nodes
-    and executes them sequentially. This is the core of the
-    Composite pattern.
+    and executes them sequentially.
+
+    This is the core of the Composite pattern, allowing multiple steps
+    to be treated as a single execution unit.
     """
 
     def __init__(self, *nodes: Node):
         self.nodes: list[Node] = list(nodes)
 
     async def execute(self, context: Context, engine: Engine) -> T:
-        """Executes each child node in order."""
+        """Executes each child node in order, returning the result of the last node."""
         result = None
 
         for node in self.nodes:
@@ -178,6 +201,7 @@ class Sequence[T](Node[T]):
         return cast(T, result)
 
     def then[U](self, node: Node[U]) -> Sequence[U]:
+        """Appends a node to the sequence and returns it cast to the new type."""
         self.nodes.append(node)
         return cast(Sequence[U], self)
 
@@ -185,8 +209,9 @@ class Sequence[T](Node[T]):
 class When[T](Node[T]):
     """
     A Composite node that handles boolean (True/False) branching.
-    It calls engine.decide() and then executes one of two
-    child nodes (which are typically Sequence or NoOp nodes).
+
+    It calls engine.decide() and then executes either the 'then' or
+    the 'otherwise' node based on the boolean result.
     """
 
     def __init__(self, then: Node[T], otherwise: Node[T], *instructions: str | Message):
@@ -203,8 +228,9 @@ class When[T](Node[T]):
 class Branch[T](Node[T]):
     """
     A Composite node that handles multi-way branching.
-    It calls engine.choose() and executes the matching
-    child node from a dictionary.
+
+    It calls engine.choose() to select a key from a dictionary of choices,
+    then executes the matching child node.
     """
 
     def __init__(self, *instructions: str | Message, **choices: Node[T]):
@@ -225,8 +251,8 @@ class Branch[T](Node[T]):
 
 class Route[T](Node[T]):
     """
-    A container node that automatically routes between
-    two or more flows.
+    A container node that automatically routes between two or more Flows
+    based on their names and descriptions.
     """
 
     def __init__(self, *flows: Flow[T], prompt: str | None = None) -> None:
@@ -237,8 +263,6 @@ class Route[T](Node[T]):
         self.prompt = prompt
 
     async def execute(self, context: Context, engine: Engine) -> T:
-        # Build a description list for the LLM
-        # We use the flow's name and description to guide the choice.
         descriptions = []
 
         for f in self.flows:
@@ -254,8 +278,6 @@ class Route[T](Node[T]):
         if self.prompt:
             instruction += "\n\n" + self.prompt
 
-        # context.choose uses str(option) for the list of keys.
-        # Since Flow.__str__ returns the name, the keys will be clean names.
         selected_flow = await engine.choose(context, list(self.flows), instruction)
 
         # Execute the chosen Flow
@@ -265,6 +287,7 @@ class Route[T](Node[T]):
 class Repeat[T](Node[T]):
     """
     A Composite node that implements an iterative loop.
+
     It executes the 'body' until the 'until' condition returns True
     or the 'max_repeats' limit is reached.
     """
@@ -281,10 +304,8 @@ class Repeat[T](Node[T]):
         last_result: Any = None
 
         for _ in range(self.max_repeats):
-            # 1. Execute the main body of the loop
             last_result = await self.body.execute(context, engine)
 
-            # 2. Check the exit condition
             if await self.until.execute(context, engine):
                 break
 
@@ -294,7 +315,9 @@ class Repeat[T](Node[T]):
 class Fork[T](Node[T]):
     """
     Executes multiple sub-flows in parallel using context clones.
+
     Synthesizes results using an aggregator Node or string prompt.
+    Useful for parallel processing or multi-perspective analysis.
     """
 
     def __init__(
@@ -307,7 +330,6 @@ class Fork[T](Node[T]):
 
     async def execute(self, context: Context, engine: Engine) -> T:
         # 1. Run all branches in parallel with isolated context clones
-        # context.clone() ensures that 'scratchpad' messages stay in the branch
         results = await asyncio.gather(
             *(node.execute(context.clone(), engine) for node in self.branches)
         )
@@ -315,21 +337,17 @@ class Fork[T](Node[T]):
         # 2. Prepare aggregator context (clone of original + branch results)
         agg_context = context.clone()
         for res in results:
-            # Format results for the aggregator's context
             content = res.model_dump_json() if isinstance(res, BaseModel) else str(res)
             agg_context.append(Message.system(content))
 
         # 3. Perform aggregation
         if isinstance(self.aggregator, str):
-            # Default string aggregator is wrapped in a Reply node
             agg_node = Reply(self.aggregator)
             result = await agg_node.execute(agg_context, engine)
         else:
-            # Custom Node[T] allows for structured data aggregation
             result = await self.aggregator.execute(agg_context, engine)
 
         # 4. Integrate the final synthesized result into the main context
-        # This keeps the main history clean while informing it of the fork's conclusion
         summary_text = (
             result.model_dump_json() if isinstance(result, BaseModel) else str(result)
         )
@@ -340,9 +358,10 @@ class Fork[T](Node[T]):
 
 class Retry[T](Node[T]):
     """
-    Attempts to execute a node multiple times.
-    On failure, rolls back context and runs a 'fixer' node to update
-    the context for the next attempt.
+    Attempts to execute a node multiple times with context rollback on failure.
+
+    On failure, it rolls back the context, executes a 'fixer' node to update
+    the context with error info, and retries the body.
     """
 
     def __init__(self, body: Node[T], fixer: Node[Any], max_retries: int = 3):
@@ -362,7 +381,7 @@ class Retry[T](Node[T]):
                     raise e
 
                 # Rollback happened automatically via atomic().
-                # Now, run the fixer to add "hints" or error info to the context.
+                # Run the fixer to add "hints" or error info to the context.
                 with context.fork():
                     context.append(
                         Message.system(f"The attempt failed with exception: {e}")
@@ -371,13 +390,15 @@ class Retry[T](Node[T]):
 
                 context.append(Message.system(fix))
 
-        raise AssertionError("We can't be here")
+        raise AssertionError("Unreachable state in Retry node.")
 
 
 class Attempt[T](Node[T]):
     """
-    Tries to execute the 'body' node. If it fails, the context is rolled back
-    and the 'fallback' node is executed instead.
+    Tries to execute a 'body' node.
+
+    If it fails, the context is rolled back and the 'fallback' node
+    is executed instead.
     """
 
     def __init__(self, body: Node[T], fallback: Node[T]):
@@ -386,17 +407,16 @@ class Attempt[T](Node[T]):
 
     async def execute(self, context: Context, engine: Engine) -> T:
         try:
-            # Use the atomic manager to ensure failure doesn't pollute history
             with context.atomic():
                 return await self.body.execute(context, engine)
         except Exception:
-            # Fallback is executed in the cleaned context
             return await self.fallback.execute(context, engine)
 
 
 class Compress(Node[None]):
     """
-    Prunes the context window.
+    Prunes the context window to manage token limits.
+
     - If aggregator is provided: Context becomes [Prefix, Summary].
     - If aggregator is None: Context becomes [Prefix, Last N] (Limit mode).
     """
@@ -421,7 +441,6 @@ class Compress(Node[None]):
         else:
             working = list(context.messages)
 
-        # Ensure we don't duplicate the prefix in the final message set
         clean_working = [m for m in working if m not in prefix]
 
         # 3. Handle Limit Mode (Aggregator is None)
@@ -430,27 +449,23 @@ class Compress(Node[None]):
             return None
 
         # 4. Handle Compression Mode
-        # Create a temp context of the prefix + working messages to summarize
         summary_ctx = Context(prefix + clean_working)
 
         if isinstance(self.aggregator, str):
-            # Use the engine directly to get a summary string
             summary_msg = await engine.reply(summary_ctx, self.aggregator)
             summary_text = str(summary_msg.content)
         else:
-            # Use a custom node/flow for aggregation
             summary_text = await self.aggregator.execute(summary_ctx, engine)
 
         # 5. Prune and Update the Context
-        # Final state: Anchor Prefix + a System message containing the summary
         context.messages[:] = prefix + [Message.system(f"SUMMARY: {summary_text}")]
 
 
 class Scope[T](Node[T]):
     """
-    A Composite node that creates a temporary tool scope.
-    It clones the Engine, adds the new tools, and executes
-    its body with the new Engine instance.
+    Creates a temporary tool scope for a specific execution block.
+
+    Clones the Engine, adds new tools, and executes its body with the scoped Engine.
     """
 
     def __init__(self, tools: list[Tool], body: Node[T]):
@@ -458,21 +473,17 @@ class Scope[T](Node[T]):
         self.body = body
 
     async def execute(self, context: Context, engine: Engine) -> T:
-        # 1. Create a NEW engine instance with the scoped tools
-        # This is safe for concurrency because we don't mutate 'engine'
         scoped_engine = engine.scope(self.tools)
-
-        # 2. Execute the body with the new engine
         return await self.body.execute(context, scoped_engine)
 
 
 class Flow[T](Sequence[T]):
     """
-    A fluent, chainable API for building a declarative
-    workflow.
+    A fluent, chainable API for building a declarative workflow.
 
-    A Flow is itself a 'Sequence' Node, allowing it to be
-    composed of other nodes and even nested inside other Flows.
+    A Flow is a 'Sequence' Node, allowing it to be composed of other nodes
+    and nested inside other Flows. It provides high-level builder methods
+    for common conversational logic.
     """
 
     def __init__(
@@ -480,7 +491,14 @@ class Flow[T](Sequence[T]):
         name: str | None = None,
         description: str | None = None,
     ):
-        super().__init__()  # Initialize the Sequence parent
+        """
+        Initializes a Flow.
+
+        Args:
+            name: Optional name for identification.
+            description: Optional description for documentation or routing.
+        """
+        super().__init__()
         self.name = name or f"Flow-{str(uuid.uuid4())}"
         self.description = description or ""
 
@@ -488,154 +506,80 @@ class Flow[T](Sequence[T]):
         return self.name
 
     def append(self, msg: str | Message) -> Flow[None]:
-        """
-        Adds a step to append a message to the context.
-        Defaults to system message.
-        """
+        """Adds a step to append a message to the context."""
         if isinstance(msg, str):
             msg = Message.system(msg)
-
         return self.then(Append(msg))  # type: ignore
 
     def prepend(self, msg: str | Message) -> Flow[None]:
-        """
-        Adds a step to prepend a message to the context.
-        Defaults to system message.
-        """
+        """Adds a step to prepend a message to the context."""
         if isinstance(msg, str):
             msg = Message.system(msg)
-
         return self.then(Prepend(msg))  # type: ignore
 
     def reply(self, *instructions: str | Message) -> Flow[str]:
-        """
-        Adds a step to call the LLM for a response.
-        The response will be added to the context as an assistant message.
-
-        Args:
-            *instructions: Optional, temporary instructions for this
-                           specific reply, e.g., Message.system("Be concise").
-        """
+        """Adds a step to call the LLM for a response."""
         return self.then(Reply(*instructions))  # type: ignore
 
     def act(self, *tools: Tool) -> Flow[Any]:
-        """
-        Adds a step to equip and invoke a tool.
-        The LLM will select the best tool from the ones provided
-        and execute it. The ToolResult is added to the context.
-
-        Args:
-            *tools: One or more Tool objects available for this step.
-        """
+        """Adds a step to equip and invoke a tool."""
         return self.then(Act(*tools))  # type: ignore
 
     def when(self, prompt: str, then: Node[T], otherwise: Node[T] = NoOp()) -> Flow[T]:
-        """
-        Adds a conditional branching step (True/False).
-        The LLM will make a boolean decision based on the prompt.
-
-        Args:
-            prompt: The question for the LLM (e.g., "Is sentiment positive?").
-            yes: The Node (e.g., another Flow) to execute if True.
-            no: The Node to execute if False. Defaults to NoOp.
-        """
-        return self.then(When(prompt, then=then, otherwise=otherwise))  # type: ignore
+        """Adds a conditional branching step based on an LLM decision."""
+        return self.then(When(then, otherwise, prompt))  # type: ignore
 
     def decide(self, prompt: str) -> Flow[bool]:
-        """
-        Adds a step that computes a bool responde for
-        a specific question.
-        """
+        """Adds a step that returns an LLM-computed boolean decision."""
         return self.then(Decide(prompt))  # type: ignore
 
     def choose[R](self, prompt: str, *options: R) -> Flow[R]:
-        """
-        Adds a step that computes a bool responde for
-        a specific question.
-        """
+        """Adds a step where the LLM chooses from a list of options."""
         return self.then(Choose(prompt, *options))  # type: ignore
 
     def branch(self, prompt: str, **choices: Node[T]) -> Flow[T]:
-        """
-        Adds a multi-way branching step.
-        The LLM will choose one of the string keys from the 'choices' dict.
-
-        Args:
-            prompt: The question for the LLM (e.g., "Which topic?").
-            choices: A dictionary mapping string choices to the
-                     Node (e.g., another Flow) to execute.
-        """
-        return self.then(Branch(choices, prompt))  # type: ignore
+        """Adds a multi-way branching step based on string keys."""
+        return self.then(Branch(prompt, **choices))  # type: ignore
 
     def create[R: BaseModel](self, model: Type[R], prompt: str) -> Flow[R]:
-        """
-        Adds a step to create a Pydantic model from the LLM's response.
-
-        Args:
-            model: A pydantic class to create.
-            instructions: Optional sequence of temporal instructions.
-        """
+        """Adds a step to create a structured Pydantic object."""
         return self.then(Create(model, prompt))  # type: ignore
 
     def custom(self, func: Callable[[Context, Engine], Coroutine]) -> Flow:
+        """Adds a step that executes a custom coroutine function."""
         return self.then(FunctionalNode(func))  # type: ignore
 
     def route[R](self, *flows: Flow[R], prompt: str | None = None) -> Flow[R]:
+        """Adds a step that automatically routes between multiple Flows."""
         return self.then(Route(*flows, prompt=prompt))  # type: ignore
 
     def repeat[U](
         self, body: Node[U], until: str | Node[bool], max_repeats: int = 5
     ) -> Flow[U]:
-        """
-        Adds an iterative loop to the flow.
-
-        Args:
-            body: The Node or Flow to repeat.
-            until: A prompt string (LLM decision) or a Node returning bool.
-            max_repeats: Safety limit to prevent infinite loops.
-        """
-        # Wrap string prompts into a Decide node automatically
+        """Adds an iterative loop to the flow."""
         condition = Decide(until) if isinstance(until, str) else until
         return self.then(Repeat(body, condition, max_repeats))  # type: ignore
 
     def fork[U](
         self, *flows: Node[Any], aggregator: str | Node[U] = "Summarize these inputs"
     ) -> Flow[U]:
-        """
-        Adds a parallel fork step to the flow.
-        The Flow's return type transitions to the type U returned by the aggregator.
-        """
+        """Adds a parallel fork step to the flow."""
         return self.then(Fork(list(flows), aggregator))  # type: ignore
 
     def retry(self, fixer: Node[Any], max_retries: int = 3) -> Flow[T]:
-        """
-        Wraps all previously defined steps into a Retry block.
-        If an exception occurs, the context is rolled back via atomic(),
-        the 'fixer' node is executed to provide feedback, and the flow
-        re-starts from the first step.
-        """
-        # Package existing nodes as the 'body' to be retried
+        """Wraps the entire flow logic into a Retry block."""
         body = Sequence(*self.nodes)
-
-        # Replace current flow logic with the wrapped Retry node
         self.nodes = [Retry(body, fixer, max_retries)]
         return self
 
     def fallback(self, fallback: Node[T]) -> Flow[T]:
-        """
-        Wraps all previously defined steps into an Attempt block.
-        If the primary flow fails, the context is rolled back via atomic()
-        and the fallback node is executed instead.
-        """
-        # Package existing nodes as the primary attempt 'body'
+        """Wraps the entire flow logic into an Attempt block with fallback."""
         body = Sequence(*self.nodes)
-
-        # Replace current flow logic with the wrapped Attempt node
-        # The Flow's return type transitions to match the fallback/body type U
         self.nodes = [Attempt(body, fallback)]
         return self  # type: ignore
 
     def then[U](self, node: Node[U]) -> Flow[U]:
+        """Adds a node to the sequence and returns the flow cast to the new type."""
         return cast(Flow[U], super().then(node))
 
     def compress(
@@ -644,14 +588,11 @@ class Flow[T](Sequence[T]):
         prefix_k: int = 1,
         aggregator: str | Node[str] | None = "Summarize the history.",
     ) -> Flow[None]:
-        """
-        Prunes the context history.
-        If aggregator is None, it acts as a simple sliding window (Limit).
-        Returns the summary string (or None if in Limit mode).
-        """
+        """Adds a step to prune or summarize the conversation history."""
         return self.then(Compress(n, prefix_k, aggregator))  # type: ignore
 
     async def execute(self, context: Context, engine: Engine) -> T:
+        """Executes the flow, handling StopFlow early exits."""
         try:
             return await super().execute(context, engine)
         except StopFlow as e:
@@ -660,8 +601,8 @@ class Flow[T](Sequence[T]):
 
 def flow(func: Callable[[Context, Engine], Coroutine]) -> Flow:
     """
-    A decorator that converts a function into a Flow instance.
-    The function must be a coroutine taking (Context, Engine).
-    Use the function's docstring as the Flow's description.
+    A decorator that converts a coroutine function into a Flow instance.
+
+    Uses the function's docstring as the Flow's description.
     """
     return Flow(name=func.__name__, description=func.__doc__).custom(func)
