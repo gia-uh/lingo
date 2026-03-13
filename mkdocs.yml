@@ -1,0 +1,35 @@
+site_name: Lingo
+site_description: A minimal, async-native, and unopinionated toolkit for modern LLM applications.
+site_author: Alejandro Piad
+repo_url: https://github.com/gia-uh/lingo
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: indigo
+    accent: indigo
+  features:
+    - content.code.copy
+    - content.code.annotate
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+
+nav:
+  - Overview: index.md
+  - User Guide: user-guide.md
+  - Architectural Design: design.md
+  - Execution & Deployment: deploy.md
+  - Development & Testing: develop.md
+  - AI Agent Skill: skill.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
