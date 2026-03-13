@@ -1,6 +1,6 @@
-<p align="center"> <img src="https://github.com/user-attachments/assets/27a24307-cda0-4fa8-ba6c-9b5ca9b27efe" alt="lingo library logo" width="300"/> </p>
+<div align="center"> <img src="https://github.com/user-attachments/assets/27a24307-cda0-4fa8-ba6c-9b5ca9b27efe" alt="lingo library logo" width="300"/>
 
-<p align="center"> <strong>A minimal, async-native, and unopinionated toolkit for modern LLM applications.</strong> </p>
+<strong>A minimal, async-native, and unopinionated toolkit for modern LLM applications.</strong>
 
 ![PyPI - Version](https://img.shields.io/pypi/v/lingo-ai)
 ![PyPi - Python Version](https://img.shields.io/pypi/pyversions/lingo-ai)
@@ -8,7 +8,9 @@
 ![PyPi - Downloads (Monthly)](https://img.shields.io/pypi/dm/lingo-ai)
 ![Github - Commits](https://img.shields.io/github/commit-activity/m/gia-uh/lingo)
 
-> **Stop wiring graphs. Start modeling conversations.**
+</div>
+
+---
 
 Lingo is a lightweight, type-safe Python framework for building LLM-powered applications. It moves beyond generic "agents" and "chains" to focus on **Conversational Modeling**—the discipline of defining exactly how a system perceives, processes, and advances a dialogue state.
 
