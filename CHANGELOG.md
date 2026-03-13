@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-03-13
+
+### Added
+- **Comprehensive Documentation Suite:** A new `/docs` directory containing in-depth guides on Architectural Design, Deployment, Development, and a full User Guide.
+- **AI Agent Skill Guide:** Specialized documentation (`docs/skill.md`) designed to instruct AI coding agents on how to use Lingo-AI idiomatically.
+- **CI/CD Documentation Workflow:** Automated MkDocs rendering and GitHub Pages deployment on every release.
+- **MkDocs Integration:** Added `mkdocs-material` as a development dependency and configured `mkdocs.yml`.
+
+### Changed
+- Restored original library-focused `README.md` to preserve project identity post-Gemini integration.
+
 ## [0.11.0] - 2026-03-11
 
 ### Added
