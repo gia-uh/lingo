@@ -163,6 +163,31 @@ class Message(BaseModel):
         return dump
 
 
+_REASONING_FIELDS = ("reasoning", "reasoning_content", "thoughts")
+
+
+def _read_reasoning(delta: Any) -> str | None:
+    """Pull a streamed reasoning fragment from a delta, handling provider variance.
+
+    Different providers expose reasoning under different field names:
+    OpenRouter unified and OpenAI o-series use ``reasoning``, some
+    DeepSeek/Anthropic paths use ``reasoning_content``, and some Gemini
+    paths use ``thoughts``. The OpenAI SDK preserves unknown fields via
+    ``model_extra``; we check both the typed attribute path and the
+    extras dict so we catch fields the SDK didn't model directly.
+    """
+    for name in _REASONING_FIELDS:
+        value = getattr(delta, name, None)
+        if value:
+            return value
+    extra = getattr(delta, "model_extra", None) or {}
+    for name in _REASONING_FIELDS:
+        value = extra.get(name)
+        if value:
+            return value
+    return None
+
+
 class LLM:
     """
     A client for interacting with a Large Language Model.
@@ -175,8 +200,10 @@ class LLM:
         api_key: str | None = None,
         base_url: str | None = None,
         on_token: Callable[[str], Any] | None = None,
+        on_reasoning_token: Callable[[str], Any] | None = None,
         on_create: Callable[[BaseModel], Any] | None = None,
         on_message: Callable[[Message], Any] | None = None,
+        reasoning: dict[str, Any] | None = None,
         **extra_kwargs,
     ):
         """
@@ -187,15 +214,25 @@ class LLM:
             api_key: The API key. Defaults to os.getenv("API_KEY").
             base_url: The API base URL. Defaults to os.getenv("BASE_URL").
             on_token: A sync/async function called with each chat token.
+            on_reasoning_token: A sync/async function called with each
+                streamed reasoning/thinking fragment (OpenRouter
+                ``delta.reasoning``, OpenAI o-series, etc.).
             on_create: A sync/async function called with the fully parsed
                        Pydantic model from a `create` call.
             on_message: A sync/async function called with every message (chat or create)
                         useful mostly for login usage.
+            reasoning: Optional OpenRouter ``reasoning`` body kwarg
+                (e.g. ``{"effort": "high"}`` or ``{"max_tokens": 1024}``).
+                Injected only on the streaming ``chat()`` path; the
+                structured-output ``create()`` path never carries it,
+                because OpenAI's ``parse()`` rejects unknown kwargs.
             **extra_kwargs: Additional arguments for the client (e.g., temperature).
         """
         self._on_token = on_token
+        self._on_reasoning_token = on_reasoning_token
         self._on_create = on_create
         self._on_message = on_message
+        self._reasoning = reasoning
 
         if model is None:
             model = os.getenv("MODEL")
@@ -211,6 +248,13 @@ class LLM:
     async def on_token(self, token: str):
         if self._on_token:
             resp = self._on_token(token)
+
+            if inspect.iscoroutine(resp):
+                await resp
+
+    async def on_reasoning_token(self, token: str):
+        if self._on_reasoning_token:
+            resp = self._on_reasoning_token(token)
 
             if inspect.iscoroutine(resp):
                 await resp
@@ -233,18 +277,26 @@ class LLM:
         """
         Sends a message list and returns the full assistant Message.
         If an on_token callback is set, it will be triggered for each token.
+        If an on_reasoning_token callback is set and the provider streams
+        reasoning fragments (OpenRouter ``delta.reasoning``, OpenAI
+        o-series, DeepSeek/Anthropic ``reasoning_content``, Gemini
+        ``thoughts``), they are dispatched separately from content tokens.
         """
         result_chunks = []
         usage: Usage | None = None
         # Convert Message objects to dictionaries for the API
         api_messages = [msg.model_dump() for msg in messages]
 
+        call_kwargs = self.extra_kwargs | kwargs
+        if self._reasoning is not None and "reasoning" not in call_kwargs:
+            call_kwargs["reasoning"] = self._reasoning
+
         async for chunk in await self.client.chat.completions.create(
             model=self.model,  # type: ignore
             messages=api_messages,  # type: ignore
             stream=True,
             stream_options=dict(include_usage=True),  # type: ignore
-            **(self.extra_kwargs | kwargs),
+            **call_kwargs,
         ):
             if chunk.usage:
                 usage = Usage(
@@ -253,12 +305,18 @@ class LLM:
                     total_tokens=chunk.usage.total_tokens,
                 )
 
-            content = chunk.choices[0].delta.content
-            if content is None:
+            if not chunk.choices:
                 continue
+            delta = chunk.choices[0].delta
 
-            await self.on_token(content)
-            result_chunks.append(content)
+            reasoning = _read_reasoning(delta)
+            if reasoning:
+                await self.on_reasoning_token(reasoning)
+
+            content = getattr(delta, "content", None)
+            if content:
+                await self.on_token(content)
+                result_chunks.append(content)
 
         result = Message.assistant("".join(result_chunks), usage=usage)
         await self.on_message(result)
