@@ -129,7 +129,10 @@ async def test_chat_dispatches_reasoning_then_content():
 
 
 @pytest.mark.asyncio
-async def test_chat_injects_reasoning_kwarg_when_configured():
+async def test_chat_injects_reasoning_via_extra_body():
+    """OpenAI's SDK rejects `reasoning` as a direct kwarg. It must be
+    routed through `extra_body`, which the SDK merges into the request
+    JSON and forwards to the upstream provider (OpenRouter, etc.)."""
     llm = LLM(
         model="x",
         api_key="dummy",
@@ -140,17 +143,21 @@ async def test_chat_injects_reasoning_kwarg_when_configured():
     await llm.chat([Message.user("hi")])
 
     sent_kwargs = create.call_args.kwargs
-    assert sent_kwargs["reasoning"] == {"effort": "high"}
+    # Never as a direct kwarg — that would TypeError against the real SDK.
+    assert "reasoning" not in sent_kwargs
+    assert sent_kwargs["extra_body"]["reasoning"] == {"effort": "high"}
 
 
 @pytest.mark.asyncio
-async def test_chat_omits_reasoning_kwarg_when_not_configured():
+async def test_chat_omits_reasoning_when_not_configured():
     llm = LLM(model="x", api_key="dummy")
     create = _patch_stream(llm, [_chunk(_delta(content="ok"))])
 
     await llm.chat([Message.user("hi")])
 
-    assert "reasoning" not in create.call_args.kwargs
+    sent_kwargs = create.call_args.kwargs
+    assert "reasoning" not in sent_kwargs
+    assert "extra_body" not in sent_kwargs
 
 
 @pytest.mark.asyncio
@@ -160,7 +167,24 @@ async def test_chat_call_kwarg_overrides_constructor_reasoning():
 
     await llm.chat([Message.user("hi")], reasoning={"effort": "high"})
 
-    assert create.call_args.kwargs["reasoning"] == {"effort": "high"}
+    assert create.call_args.kwargs["extra_body"]["reasoning"] == {"effort": "high"}
+
+
+@pytest.mark.asyncio
+async def test_chat_preserves_caller_extra_body():
+    """If the caller supplies their own extra_body, our reasoning entry
+    is added without clobbering existing keys."""
+    llm = LLM(model="x", api_key="dummy", reasoning={"effort": "high"})
+    create = _patch_stream(llm, [_chunk(_delta(content="ok"))])
+
+    await llm.chat(
+        [Message.user("hi")],
+        extra_body={"provider": {"order": ["a", "b"]}},
+    )
+
+    sent = create.call_args.kwargs["extra_body"]
+    assert sent["reasoning"] == {"effort": "high"}
+    assert sent["provider"] == {"order": ["a", "b"]}
 
 
 @pytest.mark.asyncio

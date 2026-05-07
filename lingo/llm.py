@@ -288,8 +288,17 @@ class LLM:
         api_messages = [msg.model_dump() for msg in messages]
 
         call_kwargs = self.extra_kwargs | kwargs
-        if self._reasoning is not None and "reasoning" not in call_kwargs:
-            call_kwargs["reasoning"] = self._reasoning
+        # `reasoning` is an OpenRouter-style body extension, not a known
+        # OpenAI SDK kwarg. The SDK rejects unknown direct kwargs, so we
+        # route it through `extra_body` (which the SDK merges into the
+        # request JSON). Per-call overrides win over the constructor.
+        extra_body = dict(call_kwargs.pop("extra_body", None) or {})
+        per_call_reasoning = call_kwargs.pop("reasoning", None)
+        reasoning = per_call_reasoning if per_call_reasoning is not None else self._reasoning
+        if reasoning is not None and "reasoning" not in extra_body:
+            extra_body["reasoning"] = reasoning
+        if extra_body:
+            call_kwargs["extra_body"] = extra_body
 
         async for chunk in await self.client.chat.completions.create(
             model=self.model,  # type: ignore
