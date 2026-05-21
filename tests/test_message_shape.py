@@ -17,8 +17,13 @@ def test_assistant_message_defaults():
 
 def test_assistant_message_with_tool_calls():
     tc = ToolCall(id="c1", name="read", arguments={"path": "x"})
-    msg = Message(role="assistant", content="thinking…", tool_calls=[tc],
-                  thinking="some reasoning", stop_reason="tool_calls")
+    msg = Message(
+        role="assistant",
+        content="thinking…",
+        tool_calls=[tc],
+        thinking="some reasoning",
+        stop_reason="tool_calls",
+    )
     assert msg.tool_calls == [tc]
     assert msg.thinking == "some reasoning"
     assert msg.stop_reason == "tool_calls"

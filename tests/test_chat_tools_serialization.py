@@ -13,6 +13,7 @@ async def read(path: str) -> str:
 def _schema_for(tool_obj):
     """Build the OpenAI tools entry the way LLM.chat does."""
     from lingo.llm import tool_to_openai_schema
+
     return tool_to_openai_schema(tool_obj)
 
 
@@ -39,8 +40,11 @@ async def test_chat_passes_tools_kwarg():
         yield  # unreachable; marks this as an async generator
 
     llm = LLM(model="x", api_key="k")
-    with patch.object(llm.client.chat.completions, "create",
-                      new=AsyncMock(return_value=empty_stream())) as create:
+    with patch.object(
+        llm.client.chat.completions,
+        "create",
+        new=AsyncMock(return_value=empty_stream()),
+    ) as create:
         await llm.chat([], tools=[read])
 
     create.assert_called_once()

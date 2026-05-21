@@ -3,8 +3,9 @@ from unittest.mock import AsyncMock, MagicMock
 from lingo.llm import LLM
 
 
-def _make_chunk(content=None, tool_call_chunks=None, finish_reason=None,
-                reasoning=None, usage=None):
+def _make_chunk(
+    content=None, tool_call_chunks=None, finish_reason=None, reasoning=None, usage=None
+):
     """Build one streaming chunk shaped like the OpenAI SDK."""
     delta = MagicMock()
     delta.content = content
@@ -67,12 +68,16 @@ async def test_streaming_tool_calls_parsed():
 async def test_streaming_multi_tool_batch():
     """Two tools streamed in parallel (interleaved index 0 and 1)."""
     chunks = [
-        _make_chunk(tool_call_chunks=[
-            _tc_chunk(0, id_="call_a", name="read"),
-            _tc_chunk(1, id_="call_b", name="write"),
-        ]),
+        _make_chunk(
+            tool_call_chunks=[
+                _tc_chunk(0, id_="call_a", name="read"),
+                _tc_chunk(1, id_="call_b", name="write"),
+            ]
+        ),
         _make_chunk(tool_call_chunks=[_tc_chunk(0, args='{"path": "a.py"}')]),
-        _make_chunk(tool_call_chunks=[_tc_chunk(1, args='{"path": "b.py", "content": "x"}')]),
+        _make_chunk(
+            tool_call_chunks=[_tc_chunk(1, args='{"path": "b.py", "content": "x"}')]
+        ),
         _make_chunk(finish_reason="tool_calls"),
     ]
 

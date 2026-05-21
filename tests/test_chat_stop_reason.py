@@ -42,8 +42,10 @@ async def test_stop_reason_captured(reason):
 async def test_stop_reason_none_when_absent():
     """No finish_reason in any chunk → Message.stop_reason is None."""
     chunk = _chunk("Hi")
+
     async def gen():
         yield chunk
+
     llm = LLM(model="x", api_key="k")
     llm.client.chat.completions.create = AsyncMock(return_value=gen())
     msg = await llm.chat([])

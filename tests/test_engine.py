@@ -32,6 +32,7 @@ def empty_ctx() -> Context:
 
 class MyModel(BaseModel):
     """A simple test model."""
+
     value: str
 
 

@@ -5,6 +5,7 @@ the dump method wasn't including `tool_calls` on assistant messages
 or `tool_call_id` on tool-role messages. Both are REQUIRED by OpenAI's
 chat completions API when replaying a tool-using conversation.
 """
+
 from lingo.llm import Message, ToolCall
 
 
@@ -16,7 +17,8 @@ def test_assistant_message_dump_includes_tool_calls():
     dump = msg.model_dump()
     assert dump["role"] == "assistant"
     assert "tool_calls" in dump, (
-        "assistant.tool_calls MUST be serialized for OpenAI replay")
+        "assistant.tool_calls MUST be serialized for OpenAI replay"
+    )
     assert isinstance(dump["tool_calls"], list)
     assert len(dump["tool_calls"]) == 1
     # OpenAI's expected shape: each entry has id + type + function.{name, arguments}
@@ -25,8 +27,9 @@ def test_assistant_message_dump_includes_tool_calls():
     assert serialized_tc.get("id") == "call_xyz"
     # Either function.name + function.arguments structure (OpenAI native), or
     # at minimum the name/arguments are reachable somehow:
-    assert "read" in str(serialized_tc), \
+    assert "read" in str(serialized_tc), (
         f"name 'read' should appear somewhere in serialized tool call: {serialized_tc!r}"
+    )
 
 
 def test_assistant_message_dump_without_tool_calls_omits_field():
@@ -35,8 +38,9 @@ def test_assistant_message_dump_without_tool_calls_omits_field():
     msg = Message.assistant("plain reply")
     dump = msg.model_dump()
     # tool_calls should either be absent or None — definitely not [].
-    assert dump.get("tool_calls") in (None,), \
+    assert dump.get("tool_calls") in (None,), (
         f"empty tool_calls should be omitted/None, got {dump.get('tool_calls')!r}"
+    )
     # But it's also acceptable for it to be entirely absent:
     # the assertion above passes for either {} or {"tool_calls": None}.
 
@@ -49,7 +53,8 @@ def test_tool_message_dump_includes_tool_call_id():
     assert dump["role"] == "tool"
     assert dump.get("tool_call_id") == "call_xyz", (
         "tool.tool_call_id MUST be serialized for OpenAI to link the result "
-        "back to the originating tool call")
+        "back to the originating tool call"
+    )
 
 
 def test_tool_call_round_trips_through_dump():

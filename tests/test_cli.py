@@ -239,7 +239,9 @@ class TestLoop:
 
         tokens_run: list[str] = []
         app2 = make_cli_app(responses=["Token stream"])
-        asyncio.run(run(app2, input_fn=OneShotInputFn("Go"), output_fn=tokens_run.append))
+        asyncio.run(
+            run(app2, input_fn=OneShotInputFn("Go"), output_fn=tokens_run.append)
+        )
 
         assert "".join(tokens_loop) == "".join(tokens_run)
 

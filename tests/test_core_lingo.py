@@ -68,6 +68,7 @@ class TestLingoInit:
         # We can't easily use a real LLM without a key, so just verify the attribute
         # is set to *something* that is not None.
         from lingo.llm import LLM
+
         app = Lingo.__new__(Lingo)
         # Call __init__ with only a mock llm to avoid network
         mock = MockLLM()

@@ -94,9 +94,17 @@ class Message(BaseModel):
     tool_calls: list[ToolCall] | None = None
     tool_call_id: str | None = None  # required for role="tool" by OpenAI API
     thinking: str | None = None
-    stop_reason: Literal[
-        "stop", "length", "tool_calls", "content_filter", "error", "aborted",
-    ] | None = None
+    stop_reason: (
+        Literal[
+            "stop",
+            "length",
+            "tool_calls",
+            "content_filter",
+            "error",
+            "aborted",
+        ]
+        | None
+    ) = None
     usage: Usage | None = None
 
     @classmethod
@@ -216,6 +224,7 @@ class Message(BaseModel):
 def _python_type_to_json_schema(t) -> dict:
     """Map a Python type annotation to a JSON Schema fragment."""
     import typing
+
     if t is str:
         return {"type": "string"}
     if t is int:
@@ -292,7 +301,8 @@ class LLM:
         on_create: Callable[[BaseModel], Any] | None = None,
         on_message: Callable[[Message], Any] | None = None,
         on_toolcall_start: Callable[[str, str], Any] | None = None,
-        on_toolcall_delta: Callable[[str, str], Any] | None = None,    # (call_id, cumulative_args_so_far)
+        on_toolcall_delta: Callable[[str, str], Any]
+        | None = None,  # (call_id, cumulative_args_so_far)
         on_toolcall_end: Callable[[str, dict], Any] | None = None,
         reasoning: dict[str, Any] | None = None,
         **extra_kwargs,
@@ -421,7 +431,9 @@ class LLM:
         # request JSON). Per-call overrides win over the constructor.
         extra_body = dict(call_kwargs.pop("extra_body", None) or {})
         per_call_reasoning = call_kwargs.pop("reasoning", None)
-        reasoning = per_call_reasoning if per_call_reasoning is not None else self._reasoning
+        reasoning = (
+            per_call_reasoning if per_call_reasoning is not None else self._reasoning
+        )
         if reasoning is not None and "reasoning" not in extra_body:
             extra_body["reasoning"] = reasoning
         if extra_body:
@@ -468,14 +480,22 @@ class LLM:
                 for tc in tc_chunks:
                     idx = tc.index
                     if idx not in tool_call_accumulator:
-                        tool_call_accumulator[idx] = {"id": None, "name": None, "args": ""}
+                        tool_call_accumulator[idx] = {
+                            "id": None,
+                            "name": None,
+                            "args": "",
+                        }
                     slot = tool_call_accumulator[idx]
                     if tc.id and slot["id"] is None:
                         slot["id"] = tc.id
                     if tc.function and tc.function.name and slot["name"] is None:
                         slot["name"] = tc.function.name
                     # Fire start callback once both id and name are known (typically after first chunk per index).
-                    if slot["id"] is not None and slot["name"] is not None and not slot.get("_started"):
+                    if (
+                        slot["id"] is not None
+                        and slot["name"] is not None
+                        and not slot.get("_started")
+                    ):
                         slot["_started"] = True
                         await self.on_toolcall_start(slot["id"], slot["name"])
                     if tc.function and tc.function.arguments:
@@ -495,8 +515,9 @@ class LLM:
                     # validation error one layer up, surfaced back to the LLM as a tool
                     # error result. Silent {} keeps lingo agnostic about that policy.
                     parsed_args = {}
-                tc = ToolCall(id=slot["id"] or "", name=slot["name"] or "",
-                              arguments=parsed_args)
+                tc = ToolCall(
+                    id=slot["id"] or "", name=slot["name"] or "", arguments=parsed_args
+                )
                 tool_calls.append(tc)
                 await self.on_toolcall_end(tc.id, tc.arguments)
 

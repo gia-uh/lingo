@@ -113,9 +113,14 @@ async def test_chat_dispatches_reasoning_then_content():
             _chunk(_delta(reasoning="ok.")),
             _chunk(_delta(content="hello ")),
             _chunk(_delta(content="world")),
-            _chunk(_delta(content=None), usage=SimpleNamespace(
-                prompt_tokens=1, completion_tokens=2, total_tokens=3,
-            )),
+            _chunk(
+                _delta(content=None),
+                usage=SimpleNamespace(
+                    prompt_tokens=1,
+                    completion_tokens=2,
+                    total_tokens=3,
+                ),
+            ),
         ],
     )
 

@@ -24,6 +24,7 @@ Run:
     API_KEY=... \\
     python examples/native_tool_call_streaming.py
 """
+
 import asyncio
 import os
 import sys

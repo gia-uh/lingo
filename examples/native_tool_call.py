@@ -19,6 +19,7 @@ Run:
     API_KEY=... \\
     python examples/native_tool_call.py
 """
+
 import asyncio
 import os
 import dotenv
