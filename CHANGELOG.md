@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (previously only available via the `on_reasoning_token` callback).
 - `Message.stop_reason` captures the OpenAI `finish_reason`
   (`stop` / `length` / `tool_calls` / `content_filter`).
+- `examples/native_tool_call.py` — end-to-end manual dispatch loop
+  demonstrating the new native tool-calling path.
+- `examples/native_tool_call_streaming.py` — same flow with streaming
+  callbacks (`on_toolcall_start/delta/end`) for live UI rendering.
 
 ## [1.5.0] - 2026-05-07
 
