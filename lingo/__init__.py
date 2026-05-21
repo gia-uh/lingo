@@ -1,7 +1,7 @@
 from .context import Context
 from .core import Lingo
 from .flow import Flow, flow
-from .llm import LLM, Message
+from .llm import LLM, Message, ToolCall
 from .embed import Embedder
 from .tools import tool
 from .engine import Engine
@@ -9,7 +9,7 @@ from .state import State
 
 from purely import depends
 
-__version__ = "1.4.1"
+__version__ = "2.0.0"
 
 __all__ = [
     "Context",
@@ -23,4 +23,5 @@ __all__ = [
     "Message",
     "State",
     "tool",
+    "ToolCall",
 ]
