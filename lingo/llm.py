@@ -273,7 +273,7 @@ class LLM:
         on_create: Callable[[BaseModel], Any] | None = None,
         on_message: Callable[[Message], Any] | None = None,
         on_toolcall_start: Callable[[str, str], Any] | None = None,
-        on_toolcall_delta: Callable[[str, str], Any] | None = None,
+        on_toolcall_delta: Callable[[str, str], Any] | None = None,    # (call_id, cumulative_args_so_far)
         on_toolcall_end: Callable[[str, dict], Any] | None = None,
         reasoning: dict[str, Any] | None = None,
         **extra_kwargs,
@@ -355,6 +355,13 @@ class LLM:
                 await resp
 
     async def on_toolcall_delta(self, call_id: str, partial_args: str):
+        """Dispatch a streamed-tool-call args update.
+
+        `partial_args` is the accumulated args string for this call so far
+        (cumulative across all chunks received), not the incremental fragment.
+        Consumers building a live-render of the partial-parsed JSON can use
+        this string directly without re-concatenating fragments.
+        """
         if self._on_toolcall_delta:
             resp = self._on_toolcall_delta(call_id, partial_args)
             if inspect.iscoroutine(resp):
@@ -440,7 +447,10 @@ class LLM:
                         slot["id"] = tc.id
                     if tc.function and tc.function.name and slot["name"] is None:
                         slot["name"] = tc.function.name
-                        await self.on_toolcall_start(slot["id"] or "", slot["name"])
+                    # Fire start callback once both id and name are known (typically after first chunk per index).
+                    if slot["id"] is not None and slot["name"] is not None and not slot.get("_started"):
+                        slot["_started"] = True
+                        await self.on_toolcall_start(slot["id"], slot["name"])
                     if tc.function and tc.function.arguments:
                         slot["args"] += tc.function.arguments
                         await self.on_toolcall_delta(slot["id"] or "", slot["args"])
@@ -453,6 +463,10 @@ class LLM:
                 try:
                     parsed_args = json.loads(slot["args"]) if slot["args"] else {}
                 except json.JSONDecodeError:
+                    # Downstream consumers (e.g. lovelaice's harness) validate args against
+                    # the tool's Pydantic schema; a malformed-JSON case here becomes a
+                    # validation error one layer up, surfaced back to the LLM as a tool
+                    # error result. Silent {} keeps lingo agnostic about that policy.
                     parsed_args = {}
                 tc = ToolCall(id=slot["id"] or "", name=slot["name"] or "",
                               arguments=parsed_args)

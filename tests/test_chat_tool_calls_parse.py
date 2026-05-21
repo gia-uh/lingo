@@ -61,3 +61,56 @@ async def test_streaming_tool_calls_parsed():
     assert tc.id == "call_1"
     assert tc.name == "read"
     assert tc.arguments == {"path": "foo.py"}
+
+
+@pytest.mark.asyncio
+async def test_streaming_multi_tool_batch():
+    """Two tools streamed in parallel (interleaved index 0 and 1)."""
+    chunks = [
+        _make_chunk(tool_call_chunks=[
+            _tc_chunk(0, id_="call_a", name="read"),
+            _tc_chunk(1, id_="call_b", name="write"),
+        ]),
+        _make_chunk(tool_call_chunks=[_tc_chunk(0, args='{"path": "a.py"}')]),
+        _make_chunk(tool_call_chunks=[_tc_chunk(1, args='{"path": "b.py", "content": "x"}')]),
+        _make_chunk(finish_reason="tool_calls"),
+    ]
+
+    async def gen():
+        for c in chunks:
+            yield c
+
+    llm = LLM(model="x", api_key="k")
+    llm.client.chat.completions.create = AsyncMock(return_value=gen())
+
+    msg = await llm.chat([])
+    assert msg.tool_calls is not None
+    assert len(msg.tool_calls) == 2
+    # Deterministic order by index.
+    assert msg.tool_calls[0].id == "call_a"
+    assert msg.tool_calls[0].name == "read"
+    assert msg.tool_calls[0].arguments == {"path": "a.py"}
+    assert msg.tool_calls[1].id == "call_b"
+    assert msg.tool_calls[1].name == "write"
+    assert msg.tool_calls[1].arguments == {"path": "b.py", "content": "x"}
+
+
+@pytest.mark.asyncio
+async def test_streaming_malformed_args_yields_empty_dict():
+    """Garbled args JSON → arguments={} (downstream validation catches)."""
+    chunks = [
+        _make_chunk(tool_call_chunks=[_tc_chunk(0, id_="c1", name="read")]),
+        _make_chunk(tool_call_chunks=[_tc_chunk(0, args="{path:")]),  # not valid JSON
+        _make_chunk(finish_reason="tool_calls"),
+    ]
+
+    async def gen():
+        for c in chunks:
+            yield c
+
+    llm = LLM(model="x", api_key="k")
+    llm.client.chat.completions.create = AsyncMock(return_value=gen())
+
+    msg = await llm.chat([])
+    assert msg.tool_calls[0].id == "c1"
+    assert msg.tool_calls[0].arguments == {}
