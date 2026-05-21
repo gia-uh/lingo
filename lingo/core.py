@@ -209,9 +209,10 @@ class Lingo:
         return self.messages[-1]
 
     def _build_filters(self):
+        condition_keys = list(self._filters.keys())
         fields = {
             f"option_{i}": (bool, Field(description=f"True if {key}"))
-            for i, key in enumerate(self._filters)
+            for i, key in enumerate(condition_keys)
         }
 
         model = create_model("Filter", **fields)
@@ -223,9 +224,10 @@ class Lingo:
             )
             filters = response.model_dump()
 
-            for key, value in filters.items():
+            for i, (_option_key, value) in enumerate(filters.items()):
                 if value:
-                    await self._filters[key].execute(context, engine)
+                    condition = condition_keys[i]
+                    await self._filters[condition].execute(context, engine)
 
         return router
 

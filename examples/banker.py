@@ -1,4 +1,4 @@
-from lingo import Lingo, Context, Engine, Message
+from lingo import Lingo, Context, Engine
 import dotenv
 
 from lingo.cli import loop
@@ -56,8 +56,8 @@ async def banker(context: Context, engine: Engine):
     result = await engine.invoke(context, tool)
     await engine.reply(
         context,
-        Message.system(result),
-        Message.system("Inform the user the result of the operation."),
+        result,
+        "Inform the user the result of the operation.",
     )
 
 
