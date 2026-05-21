@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.2] - 2026-05-21
+
+### Fixed
+
+- `Lingo._build_filters` (the `@app.when` reflexive-pattern router)
+  built a dynamic `Filter` model with auto-named fields
+  (`option_0`, `option_1`, …) but then looked those names up as keys
+  in `self._filters`, which is keyed by condition strings — every
+  triggered filter raised `KeyError`. Anyone using `@app.when` in
+  lingo 1.x or 2.0.1 was silently broken. Fixed by capturing the
+  ordered list of condition keys and indexing by position.
+
+### Added
+
+- New example `examples/wizard.py` — the README quickstart turned
+  into a runnable file. Demonstrates the four conversational-modeling
+  primitives (`engine.ask`, `engine.choose`, `engine.decide`,
+  `engine.create`).
+- `tests/test_examples.py` — every example in `examples/` is now
+  driven end-to-end against `MockLLM` in CI. No more silent bitrot.
+- Examples catalog section in the README + cross-link from
+  `docs/user-guide.md` Recipe 1 to `wizard.py`.
+
+### Changed
+
+- All examples refactored to expose a sync `main()` entrypoint
+  (with `if __name__ == "__main__": main()`) so they're import-safe
+  for tests. `examples/__init__.py` sets a dummy `API_KEY` env var
+  to satisfy the `openai.AsyncOpenAI` constructor at module load
+  without real network calls.
+- `examples/banker.py` no longer passes a `ToolResult` (BaseModel)
+  through `Message.system(...)` (which only accepts `str` and
+  crashed) — the BaseModel is now passed directly to
+  `engine.reply()`, which handles it correctly via
+  `_expand_content`.
+
 ## [2.0.1] - 2026-05-21
 
 ### Fixed
