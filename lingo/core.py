@@ -63,6 +63,12 @@ class Lingo:
         self._runner_task: Optional[asyncio.Task] = None
         self._active_engine: Optional[Engine] = None
         self._active_context: Optional[Context] = None
+        # Offset into _active_context.messages where "new" LLM messages begin.
+        # The flow prepends a system prompt (and may add other prefix nodes) so the
+        # raw context length is NOT equal to len(self.messages) at sync time.
+        self._context_sync_offset: int = 0
+        # Number of new context messages (past the offset) already synced to self.messages.
+        self._context_synced_count: int = 0
 
     def before(self, func: Callable[[Context, Engine], Coroutine]):
         """
@@ -138,6 +144,15 @@ class Lingo:
             engine = Engine(self.llm, self.tools)
             flow = self._build_flow()
 
+            # The flow's first node is prepend(system_prompt), which inserts one message
+            # at index 0 of the context, shifting all original messages right.
+            # After the flow runs, context.messages looks like:
+            #   [system_prepend, msg_0, ..., msg_{N-1}, <new LLM messages>]
+            # where N = len(self.messages) at this moment (we just appended the user msg).
+            # New LLM messages start at index 1 + N, so store that offset.
+            self._context_sync_offset = 1 + len(self.messages)  # 1 for prepend(system)
+            self._context_synced_count = 0
+
             # Store active session components
             self._active_engine = engine
             self._active_context = context
@@ -165,21 +180,31 @@ class Lingo:
             self._runner_task = None
             self._active_engine = None
             self._active_context = None
+            self._context_sync_offset = 0
+            self._context_synced_count = 0
             raise exc
 
         # Check for new messages generated in the context
         if self._active_context:
-            # We append only the NEW messages from the context to the global history
-            # The logic assumes strict append-only behavior in both lists
-            new_messages = self._active_context.messages[len(self.messages) :]
-            for m in new_messages:
+            # context.messages = [system_prepend, original_msg_0, ..., original_msg_{N-1},
+            #                      <new LLM messages>]
+            # _context_sync_offset = 1 + N, pointing just past the prefix and original
+            # messages. Everything from there onwards is genuinely new LLM output that
+            # hasn't been synced yet. We track which of those we've already appended to
+            # self.messages via _context_synced_count (starts at 0 per session).
+            context_new = self._active_context.messages[self._context_sync_offset :]
+            already_appended = self._context_synced_count
+            for m in context_new[already_appended:]:
                 self.messages.append(m)
+            self._context_synced_count = len(context_new)
 
         # If the task finished cleanly, clear session state
         if self._runner_task.done():
             self._runner_task = None
             self._active_engine = None
             self._active_context = None
+            self._context_sync_offset = 0
+            self._context_synced_count = 0
 
         return self.messages[-1]
 

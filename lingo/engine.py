@@ -264,4 +264,4 @@ class Engine:
         Put a message on the internal queue.
         Used to synchronize with input().
         """
-        await self._signal_queue.put(msg)
+        await self._input_queue.put(msg)
