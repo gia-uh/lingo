@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-05-21
+
+### Breaking
+
+- `Message` shape changed. Adds optional fields `tool_calls`,
+  `thinking`, `stop_reason`. Consumers that pattern-match on `Message`
+  fields may need adjustment.
+
+### Added
+
+- `ToolCall` model (`id`, `name`, `arguments: dict`).
+- `LLM.chat(tools=[...])` accepts a list of `lingo.Tool` objects and
+  serializes their schemas into the OpenAI native `tools=[...]` API
+  field via `tool_to_openai_schema()`. Returned `Message.tool_calls` is
+  populated when the model emits tool calls.
+- Streaming callbacks `on_toolcall_start(call_id, name)`,
+  `on_toolcall_delta(call_id, cumulative_args_so_far)`,
+  `on_toolcall_end(call_id, args)` mirror the existing `on_token` /
+  `on_reasoning_token` pattern.
+- `Message.thinking` accumulates the streamed reasoning fragments
+  (previously only available via the `on_reasoning_token` callback).
+- `Message.stop_reason` captures the OpenAI `finish_reason`
+  (`stop` / `length` / `tool_calls` / `content_filter`).
+
 ## [1.5.0] - 2026-05-07
 
 ### Added
