@@ -390,6 +390,7 @@ class LLM:
         result_chunks = []
         reasoning_chunks: list[str] = []
         usage: Usage | None = None
+        last_finish_reason: str | None = None
         tool_call_accumulator: dict[int, dict] = {}
         # Convert Message objects to dictionaries for the API
         api_messages = [msg.model_dump() for msg in messages]
@@ -426,6 +427,11 @@ class LLM:
 
             if not chunk.choices:
                 continue
+
+            fr = chunk.choices[0].finish_reason
+            if fr is not None:
+                last_finish_reason = fr
+
             delta = chunk.choices[0].delta
 
             reasoning = _read_reasoning(delta)
@@ -476,8 +482,13 @@ class LLM:
                 await self.on_toolcall_end(tc.id, tc.arguments)
 
         thinking = "".join(reasoning_chunks) if reasoning_chunks else None
-        result = Message.assistant("".join(result_chunks), usage=usage,
-                                   tool_calls=tool_calls, thinking=thinking)
+        result = Message.assistant(
+            "".join(result_chunks),
+            usage=usage,
+            tool_calls=tool_calls,
+            thinking=thinking,
+            stop_reason=last_finish_reason,
+        )
         await self.on_message(result)
 
         return result
