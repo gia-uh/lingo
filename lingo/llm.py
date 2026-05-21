@@ -1,4 +1,5 @@
 import os
+import json
 import inspect
 import base64
 import mimetypes
@@ -271,6 +272,9 @@ class LLM:
         on_reasoning_token: Callable[[str], Any] | None = None,
         on_create: Callable[[BaseModel], Any] | None = None,
         on_message: Callable[[Message], Any] | None = None,
+        on_toolcall_start: Callable[[str, str], Any] | None = None,
+        on_toolcall_delta: Callable[[str, str], Any] | None = None,
+        on_toolcall_end: Callable[[str, dict], Any] | None = None,
         reasoning: dict[str, Any] | None = None,
         **extra_kwargs,
     ):
@@ -300,6 +304,9 @@ class LLM:
         self._on_reasoning_token = on_reasoning_token
         self._on_create = on_create
         self._on_message = on_message
+        self._on_toolcall_start = on_toolcall_start
+        self._on_toolcall_delta = on_toolcall_delta
+        self._on_toolcall_end = on_toolcall_end
         self._reasoning = reasoning
 
         if model is None:
@@ -341,6 +348,24 @@ class LLM:
             if inspect.iscoroutine(resp):
                 await resp
 
+    async def on_toolcall_start(self, call_id: str, name: str):
+        if self._on_toolcall_start:
+            resp = self._on_toolcall_start(call_id, name)
+            if inspect.iscoroutine(resp):
+                await resp
+
+    async def on_toolcall_delta(self, call_id: str, partial_args: str):
+        if self._on_toolcall_delta:
+            resp = self._on_toolcall_delta(call_id, partial_args)
+            if inspect.iscoroutine(resp):
+                await resp
+
+    async def on_toolcall_end(self, call_id: str, args: dict):
+        if self._on_toolcall_end:
+            resp = self._on_toolcall_end(call_id, args)
+            if inspect.iscoroutine(resp):
+                await resp
+
     async def chat(
         self,
         messages: list["Message"],
@@ -357,6 +382,7 @@ class LLM:
         """
         result_chunks = []
         usage: Usage | None = None
+        tool_call_accumulator: dict[int, dict] = {}
         # Convert Message objects to dictionaries for the API
         api_messages = [msg.model_dump() for msg in messages]
 
@@ -403,7 +429,38 @@ class LLM:
                 await self.on_token(content)
                 result_chunks.append(content)
 
-        result = Message.assistant("".join(result_chunks), usage=usage)
+            tc_chunks = getattr(delta, "tool_calls", None)
+            if tc_chunks:
+                for tc in tc_chunks:
+                    idx = tc.index
+                    if idx not in tool_call_accumulator:
+                        tool_call_accumulator[idx] = {"id": None, "name": None, "args": ""}
+                    slot = tool_call_accumulator[idx]
+                    if tc.id and slot["id"] is None:
+                        slot["id"] = tc.id
+                    if tc.function and tc.function.name and slot["name"] is None:
+                        slot["name"] = tc.function.name
+                        await self.on_toolcall_start(slot["id"] or "", slot["name"])
+                    if tc.function and tc.function.arguments:
+                        slot["args"] += tc.function.arguments
+                        await self.on_toolcall_delta(slot["id"] or "", slot["args"])
+
+        tool_calls = None
+        if tool_call_accumulator:
+            tool_calls = []
+            for idx in sorted(tool_call_accumulator.keys()):
+                slot = tool_call_accumulator[idx]
+                try:
+                    parsed_args = json.loads(slot["args"]) if slot["args"] else {}
+                except json.JSONDecodeError:
+                    parsed_args = {}
+                tc = ToolCall(id=slot["id"] or "", name=slot["name"] or "",
+                              arguments=parsed_args)
+                tool_calls.append(tc)
+                await self.on_toolcall_end(tc.id, tc.arguments)
+
+        result = Message.assistant("".join(result_chunks), usage=usage,
+                                   tool_calls=tool_calls)
         await self.on_message(result)
 
         return result
