@@ -69,6 +69,17 @@ class FileContent(Content):
     file_url: dict[str, str] = Field(description="Dictionary containing 'url'")
 
 
+# --- Tool Call Model ---
+
+
+class ToolCall(BaseModel):
+    """A tool-call request emitted by the LLM in an assistant message."""
+
+    id: str
+    name: str
+    arguments: dict = Field(default_factory=dict)
+
+
 # --- Message Model ---
 
 
@@ -79,6 +90,11 @@ class Message(BaseModel):
     content: Union[
         TextContent, ImageContent, AudioContent, VideoContent, FileContent, str
     ]
+    tool_calls: list[ToolCall] | None = None
+    thinking: str | None = None
+    stop_reason: Literal[
+        "stop", "length", "tool_calls", "content_filter", "error", "aborted",
+    ] | None = None
     usage: Usage | None = None
 
     @classmethod
@@ -90,8 +106,22 @@ class Message(BaseModel):
         return cls(role="user", content=content)
 
     @classmethod
-    def assistant(cls, content: str, usage: Usage | None = None) -> "Message":
-        return cls(role="assistant", content=content, usage=usage)
+    def assistant(
+        cls,
+        content: str,
+        usage: Usage | None = None,
+        tool_calls: list[ToolCall] | None = None,
+        thinking: str | None = None,
+        stop_reason: str | None = None,
+    ) -> "Message":
+        return cls(
+            role="assistant",
+            content=content,
+            usage=usage,
+            tool_calls=tool_calls,
+            thinking=thinking,
+            stop_reason=stop_reason,
+        )
 
     @classmethod
     def tool(cls, content: Any) -> "Message":
