@@ -26,6 +26,19 @@ It unifies three powerful paradigms in a single, typed architecture:
 * **🧠 Cognitive Architecture:** Mix rigid business rules (States) with flexible reasoning (Skills).
 * **🛡️ Type-Safe:** Built on Pydantic. All inputs, outputs, and tool calls are validated schemas.
 * **🌊 Low-Level Flow Control:** Direct access to the underlying `Flow` graph for complex orchestration (Fork/Join, Retry, Loops).
+* **🔧 Native Tool-Calling (new in 2.0):** Pass `tools=[...]` to `LLM.chat()` and lingo serializes the schemas, parses the model's tool calls back into `Message.tool_calls`, and surfaces `thinking` + `stop_reason`. The library wires the pipes — you keep control of the loop.
+
+## 🆕 What's new in 2.0
+
+* **Native tool-calling wire** — `LLM.chat(messages, tools=[...])` now serializes `@tool` schemas to OpenAI's native `tools=[...]` API field and parses the streamed `tool_calls` back into `Message.tool_calls` (a list of `ToolCall(id, name, arguments)`). New streaming callbacks `on_toolcall_start`/`on_toolcall_delta`/`on_toolcall_end` mirror the existing `on_token` pattern for live UIs.
+* **Finalized `thinking` on every message** — reasoning fragments are now accumulated onto `Message.thinking` in addition to the existing `on_reasoning_token` stream.
+* **`Message.stop_reason`** — captures the OpenAI `finish_reason` (`stop` / `length` / `tool_calls` / `content_filter`) so consumers can distinguish "the model stopped naturally" from "the model wants to call a tool" from "max tokens hit".
+* **`ToolCall` exported at the top level** — `from lingo import ToolCall`.
+
+Two paths coexist in 2.0, and you pick based on what you need:
+
+* **Native tool-calling** (`LLM.chat(tools=...)` → `Message.tool_calls`) — the LLM decides when and which tools to call, in parallel batches if it wants. You execute and decide whether to loop. Fastest path; built for agent-style applications. **See `examples/native_tool_call.py`.**
+* **Structured-output tool dispatch** (`Engine.equip`/`invoke`/`act`) — the developer decides which tool gets called and asks the LLM only to fill its arguments via structured output. More controlled; lets you drive the conversation explicitly. **See `examples/banker.py`.**
 
 ## 🚀 Quickstart
 
@@ -141,11 +154,52 @@ complex_flow = (
 )
 ```
 
+## 🔧 Native Tool-Calling (new in 2.0)
+
+For agent-style applications where the LLM decides which tools to call:
+
+```python
+import asyncio
+from lingo import LLM, Message, tool
+
+
+@tool
+async def get_weather(city: str) -> str:
+    """Get the current weather for a city."""
+    return f"sunny, 22°C in {city}"
+
+
+async def main():
+    llm = LLM()  # picks up MODEL / BASE_URL / API_KEY from env
+    messages = [Message.user("What's the weather in Havana?")]
+
+    # Manual dispatch loop: keep calling until no more tool calls.
+    while True:
+        msg = await llm.chat(messages, tools=[get_weather])
+        messages.append(msg)
+        if not msg.tool_calls:
+            print(msg.content)
+            break
+        for call in msg.tool_calls:
+            result = await get_weather.run(**call.arguments)
+            # tool_call_id is REQUIRED so the model can link the result
+            # back to the call it made.
+            messages.append(Message.tool(str(result), tool_call_id=call.id))
+
+
+asyncio.run(main())
+```
+
+**Lingo doesn't loop for you, doesn't execute tools, doesn't decide what's next.** It wires the pipes — schema serialization out, tool-call parsing back, streaming events — and lets you build the agentic surface you want on top. For a complete agentic framework on top of lingo see [apiad/lovelaice](https://github.com/apiad/lovelaice).
+
+See `examples/native_tool_call.py` for the one-shot loop and `examples/native_tool_call_streaming.py` for the streaming callbacks (live token + tool-call rendering).
+
 ## 📦 Architecture
 
 * **`Context`**: Mutable ledger of the conversation history.
 * **`Engine`**: The "actuator" that drives the LLM. It exposes methods like `.ask()`, `.decide()`, `.choose()`, and `.create()`.
 * **`Flow`**: The underlying graph representation of all skills.
+* **`LLM`**: One-call interface to the language model. Streams content/reasoning/tool-calls; returns a rich `Message` (`content`, `tool_calls`, `thinking`, `stop_reason`, `usage`).
 
 ## 🤝 Contribution
 
