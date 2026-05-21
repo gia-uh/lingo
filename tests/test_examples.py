@@ -126,9 +126,7 @@ async def test_wizard_runs():
     # models never need to be type-checked.  create() is only called by the
     # skill directly for Account — patch that too.
     with (
-        patch.object(
-            Engine, "choose", new=AsyncMock(return_value="developer")
-        ),
+        patch.object(Engine, "choose", new=AsyncMock(return_value="developer")),
         patch.object(Engine, "decide", new=AsyncMock(return_value=False)),
         patch.object(Engine, "create", new=AsyncMock(return_value=account_instance)),
     ):
@@ -139,12 +137,12 @@ async def test_wizard_runs():
                 "Alice, alice@example.com, I want to test this",
             ],
             mock_responses=[
-                "Welcome! Let's set up your account.",      # reply #1
+                "Welcome! Let's set up your account.",  # reply #1
                 "Got it — setting up the developer experience.",  # reply #2
                 "Tell me your name, email, and what you want to use this for.",  # ask
                 "Thanks Alice! I have your email as alice@example.com.",  # reply after create
-                "Setting up a personal account.",            # decide→False branch
-                "All done!",                                 # final reply
+                "Setting up a personal account.",  # decide→False branch
+                "All done!",  # final reply
             ],
         )
 
@@ -248,9 +246,7 @@ async def test_banker_check_balance():
     from lingo.tools import ToolResult
 
     check_balance_tool = mod.check_balance  # the Tool object registered on bot
-    balance_result = ToolResult(
-        tool="check_balance", result={"balance": 1000}
-    )
+    balance_result = ToolResult(tool="check_balance", result={"balance": 1000})
 
     # The Route node uses engine.choose to pick a skill flow.
     # We capture the flows passed to choose and return the banker one.
@@ -348,9 +344,7 @@ async def test_injection_runs():
         tool="smart_search", result="The capital of France is Paris."
     )
 
-    with patch.object(
-        Engine, "invoke", new=AsyncMock(return_value=scripted_result)
-    ):
+    with patch.object(Engine, "invoke", new=AsyncMock(return_value=scripted_result)):
         captured = await _drive_lingo(
             mod.bot,
             user_messages=["What is the capital of France?"],
@@ -393,8 +387,16 @@ async def test_when_normal_message():
 
     Filter = create_model(
         "Filter",
-        option_0=(bool, PField(description="True if The user is asking for illegal actions or using abusive language")),
-        option_1=(bool, PField(description="True if The user seems frustrated or angry")),
+        option_0=(
+            bool,
+            PField(
+                description="True if The user is asking for illegal actions or using abusive language"
+            ),
+        ),
+        option_1=(
+            bool,
+            PField(description="True if The user seems frustrated or angry"),
+        ),
     )
     # Both False → no filter fires
     filter_instance = Filter(option_0=False, option_1=False)
@@ -428,8 +430,16 @@ async def test_when_guardrail_fires():
 
     Filter = create_model(
         "Filter",
-        option_0=(bool, PField(description="True if The user is asking for illegal actions or using abusive language")),
-        option_1=(bool, PField(description="True if The user seems frustrated or angry")),
+        option_0=(
+            bool,
+            PField(
+                description="True if The user is asking for illegal actions or using abusive language"
+            ),
+        ),
+        option_1=(
+            bool,
+            PField(description="True if The user seems frustrated or angry"),
+        ),
     )
     # option_0=True → security_guardrail fires
     filter_instance = Filter(option_0=True, option_1=False)
