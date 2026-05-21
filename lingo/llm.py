@@ -193,6 +193,44 @@ class Message(BaseModel):
         return dump
 
 
+def _python_type_to_json_schema(t) -> dict:
+    """Map a Python type annotation to a JSON Schema fragment."""
+    import typing
+    if t is str:
+        return {"type": "string"}
+    if t is int:
+        return {"type": "integer"}
+    if t is float:
+        return {"type": "number"}
+    if t is bool:
+        return {"type": "boolean"}
+    if t is list or typing.get_origin(t) is list:
+        return {"type": "array"}
+    if t is dict or typing.get_origin(t) is dict:
+        return {"type": "object"}
+    return {"type": "string"}  # safe fallback
+
+
+def tool_to_openai_schema(tool_obj) -> dict:
+    """Convert a lingo.Tool into an OpenAI tools[] entry."""
+    params = tool_obj.parameters()
+    properties = {
+        name: _python_type_to_json_schema(ptype) for name, ptype in params.items()
+    }
+    return {
+        "type": "function",
+        "function": {
+            "name": tool_obj.name,
+            "description": tool_obj.description.strip(),
+            "parameters": {
+                "type": "object",
+                "properties": properties,
+                "required": list(params.keys()),
+            },
+        },
+    }
+
+
 _REASONING_FIELDS = ("reasoning", "reasoning_content", "thoughts")
 
 
@@ -303,7 +341,12 @@ class LLM:
             if inspect.iscoroutine(resp):
                 await resp
 
-    async def chat(self, messages: list["Message"], **kwargs) -> "Message":
+    async def chat(
+        self,
+        messages: list["Message"],
+        tools: list | None = None,
+        **kwargs,
+    ) -> "Message":
         """
         Sends a message list and returns the full assistant Message.
         If an on_token callback is set, it will be triggered for each token.
@@ -329,6 +372,9 @@ class LLM:
             extra_body["reasoning"] = reasoning
         if extra_body:
             call_kwargs["extra_body"] = extra_body
+
+        if tools:
+            call_kwargs["tools"] = [tool_to_openai_schema(t) for t in tools]
 
         async for chunk in await self.client.chat.completions.create(
             model=self.model,  # type: ignore
