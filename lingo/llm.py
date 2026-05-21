@@ -428,7 +428,7 @@ class LLM:
             if not chunk.choices:
                 continue
 
-            fr = chunk.choices[0].finish_reason
+            fr = getattr(chunk.choices[0], "finish_reason", None)
             if fr is not None:
                 last_finish_reason = fr
 

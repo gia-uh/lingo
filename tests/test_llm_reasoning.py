@@ -25,7 +25,7 @@ def _delta(**fields: Any) -> SimpleNamespace:
 
 def _chunk(delta: SimpleNamespace, usage=None) -> SimpleNamespace:
     return SimpleNamespace(
-        choices=[SimpleNamespace(delta=delta)],
+        choices=[SimpleNamespace(delta=delta, finish_reason=None)],
         usage=usage,
     )
 
