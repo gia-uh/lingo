@@ -92,6 +92,7 @@ class Message(BaseModel):
         TextContent, ImageContent, AudioContent, VideoContent, FileContent, str
     ]
     tool_calls: list[ToolCall] | None = None
+    tool_call_id: str | None = None  # required for role="tool" by OpenAI API
     thinking: str | None = None
     stop_reason: Literal[
         "stop", "length", "tool_calls", "content_filter", "error", "aborted",
@@ -125,8 +126,8 @@ class Message(BaseModel):
         )
 
     @classmethod
-    def tool(cls, content: Any) -> "Message":
-        return cls(role="tool", content=content)
+    def tool(cls, content: Any, tool_call_id: str | None = None) -> "Message":
+        return cls(role="tool", content=content, tool_call_id=tool_call_id)
 
     # --- Multimodal Helper Methods ---
 
@@ -190,6 +191,24 @@ class Message(BaseModel):
         # 3. Handle legacy Pydantic model serialization (for structured output responses)
         elif isinstance(content, BaseModel):
             dump["content"] = content.model_dump_json()
+
+        # Include tool_calls for assistant messages (required by OpenAI API).
+        if self.tool_calls:
+            dump["tool_calls"] = [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.name,
+                        "arguments": json.dumps(tc.arguments),
+                    },
+                }
+                for tc in self.tool_calls
+            ]
+
+        # Include tool_call_id for tool-result messages (required by OpenAI API).
+        if self.tool_call_id is not None:
+            dump["tool_call_id"] = self.tool_call_id
 
         return dump
 
