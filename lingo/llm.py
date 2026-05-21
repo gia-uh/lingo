@@ -388,6 +388,7 @@ class LLM:
         ``thoughts``), they are dispatched separately from content tokens.
         """
         result_chunks = []
+        reasoning_chunks: list[str] = []
         usage: Usage | None = None
         tool_call_accumulator: dict[int, dict] = {}
         # Convert Message objects to dictionaries for the API
@@ -428,7 +429,8 @@ class LLM:
             delta = chunk.choices[0].delta
 
             reasoning = _read_reasoning(delta)
-            if reasoning:
+            if reasoning and isinstance(reasoning, str):
+                reasoning_chunks.append(reasoning)
                 await self.on_reasoning_token(reasoning)
 
             content = getattr(delta, "content", None)
@@ -473,8 +475,9 @@ class LLM:
                 tool_calls.append(tc)
                 await self.on_toolcall_end(tc.id, tc.arguments)
 
+        thinking = "".join(reasoning_chunks) if reasoning_chunks else None
         result = Message.assistant("".join(result_chunks), usage=usage,
-                                   tool_calls=tool_calls)
+                                   tool_calls=tool_calls, thinking=thinking)
         await self.on_message(result)
 
         return result
