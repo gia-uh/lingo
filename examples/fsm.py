@@ -96,11 +96,15 @@ def escalate_to_human(fsm: StateMachine):
 
 # --- MAIN ENTRY POINT ---
 @bot.skill
-async def main(ctx, eng):
+async def fsm_skill(ctx, eng):
     # We simply execute the FSM.
     # It handles state persistence and routing automatically.
     await fsm.execute(ctx, eng)
 
 
-if __name__ == "__main__":
+def main():
     loop(bot)
+
+
+if __name__ == "__main__":
+    main()

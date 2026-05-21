@@ -52,4 +52,11 @@ async def search_assistant(context: Context, engine: Engine):
 
 # 4. Start the Chat Loop
 # Run the bot in the CLI as seen in the hello_world example.
-loop(bot)
+
+
+def main():
+    loop(bot)
+
+
+if __name__ == "__main__":
+    main()

@@ -79,6 +79,10 @@ async def game_loop(context: Context, engine: Engine, state=depends(GameData)):
     context.append(msg)
 
 
-if __name__ == "__main__":
+def main():
     print("Welcome to LingoRPG! You are in the Town Square.")
     loop(bot)
+
+
+if __name__ == "__main__":
+    main()

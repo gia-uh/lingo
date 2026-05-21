@@ -54,7 +54,7 @@ async def add(a: int, b: int) -> int:
 TOOLS_BY_NAME = {"get_weather": get_weather, "add": add}
 
 
-async def main():
+async def _main_async():
     llm = LLM()  # reads MODEL / BASE_URL / API_KEY from environment
 
     messages = [
@@ -91,5 +91,9 @@ async def main():
         print("[reached safety cap of 5 turns]")
 
 
+def main():
+    asyncio.run(_main_async())
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

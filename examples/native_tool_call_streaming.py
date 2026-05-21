@@ -77,7 +77,7 @@ def _on_toolcall_end(call_id: str, args: dict):
     print(f"[tool_call.end    id={call_id}  args={args}]", flush=True)
 
 
-async def main():
+async def _main_async():
     llm = LLM(  # reads MODEL / BASE_URL / API_KEY from environment
         on_token=_on_token,
         on_reasoning_token=_on_reasoning_token,
@@ -100,5 +100,9 @@ async def main():
     print(f"  tool_calls:  {msg.tool_calls}")
 
 
+def main():
+    asyncio.run(_main_async())
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

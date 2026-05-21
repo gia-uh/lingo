@@ -104,5 +104,10 @@ def tv_remote(command: str):
 # RUN LOOP
 # -------------------------------------------------------------------------
 
-if __name__ == "__main__":
+
+def main():
     loop(bot)
+
+
+if __name__ == "__main__":
+    main()

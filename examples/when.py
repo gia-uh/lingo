@@ -58,4 +58,10 @@ async def support_skill(ctx: Context, engine: Engine):
 
 # --- SIMULATION ---
 
-loop(bot)
+
+def main():
+    loop(bot)
+
+
+if __name__ == "__main__":
+    main()

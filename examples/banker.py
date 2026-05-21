@@ -86,4 +86,9 @@ async def withdraw(ammount: int) -> dict:
         return dict(error="Insufficient funds.", balance=account.balance)
 
 
-loop(bot)
+def main():
+    loop(bot)
+
+
+if __name__ == "__main__":
+    main()

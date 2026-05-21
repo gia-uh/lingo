@@ -11,4 +11,11 @@ dotenv.load_dotenv()
 bot = Lingo()
 
 # Run the bot in a CLI loop
-loop(bot)
+
+
+def main():
+    loop(bot)
+
+
+if __name__ == "__main__":
+    main()
