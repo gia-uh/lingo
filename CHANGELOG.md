@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2026-05-21
+
+### Fixed
+
+- `Message.model_dump()` now serializes `tool_calls` on assistant
+  messages and `tool_call_id` on tool-role messages (both REQUIRED by
+  OpenAI's chat completions API when replaying a tool-using
+  conversation). Caught by an end-to-end live test in the
+  lovelaice integration; would have broken any consumer doing native
+  tool-calling round-trips against real models. Regression tests in
+  `tests/test_message_model_dump.py`.
+- `Engine.put(msg)` was writing to the wrong queue (`_signal_queue`
+  instead of `_input_queue`), causing `Lingo.chat()` to hang
+  indefinitely on the resume path when a skill paused at
+  `engine.ask()` / `engine.input()`. Regression test in
+  `tests/test_engine.py`.
+- `Lingo.chat()` context-sync was off by one — the prepended system
+  message shifted the slice, causing the last user message to be
+  duplicated on every turn. Regression tests in
+  `tests/test_core_lingo.py`.
+
+### Other
+
+- Coverage push: `core.py` 21%→96%, `cli.py` 0%→100%,
+  `engine.py` 45%→100%, total 55%→74%.
+- New examples: `examples/native_tool_call.py` (manual dispatch loop)
+  and `examples/native_tool_call_streaming.py` (streaming callbacks).
+- README + `docs/user-guide.md` Recipe 8 cover the new native path.
+
 ## [2.0.0] - 2026-05-21
 
 ### Breaking
