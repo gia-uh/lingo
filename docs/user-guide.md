@@ -23,6 +23,8 @@ async def register(ctx, eng):
         await eng.reply(ctx, "Personal emails not allowed.")
 ```
 
+> 📂 Runnable: [`examples/wizard.py`](../examples/wizard.py) extends this with `engine.choose` (pick from a list) and `engine.create` (extract a typed Pydantic object).
+
 ## 🛠️ Recipe 2: The Tool-User (Function Calling)
 
 **Best for: Interacting with external APIs, databases, or local scripts.**

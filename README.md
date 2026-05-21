@@ -83,6 +83,25 @@ if __name__ == "__main__":
     loop(app)
 ```
 
+> 💡 The runnable version of this quickstart lives at [`examples/wizard.py`](examples/wizard.py). It extends the pattern with `engine.choose` (LLM picks from a list), `engine.create` (LLM extracts a typed object), and `engine.decide` (LLM returns a bool) — the four conversational-modeling primitives.
+
+## 📂 Examples
+
+The [`examples/`](examples) directory has 10 runnable end-to-end demos:
+
+* [`hello_world.py`](examples/hello_world.py) — the minimal `Lingo()` + CLI loop
+* [`wizard.py`](examples/wizard.py) — conversational-modeling primitives (ask / choose / decide / create)
+* [`banker.py`](examples/banker.py) — structured tool dispatch via `engine.equip` + `engine.invoke`
+* [`native_tool_call.py`](examples/native_tool_call.py) — 2.0 native tool-calling with a manual loop
+* [`native_tool_call_streaming.py`](examples/native_tool_call_streaming.py) — same with live streaming callbacks
+* [`fsm.py`](examples/fsm.py) — `StateMachine` with per-state tools (triage → billing/tech)
+* [`smart_home.py`](examples/smart_home.py) — nested skills with scoped tools (kitchen, etc.)
+* [`state_rpg.py`](examples/state_rpg.py) — persistent `State` (Pydantic) with state-mutating tools
+* [`when.py`](examples/when.py) — reflexive `@app.when` guardrail patterns
+* [`injection.py`](examples/injection.py) — `depends()` + hidden underscore params + tool-from-tool
+
+Every example is run end-to-end against `MockLLM` in CI ([`tests/test_examples.py`](tests/test_examples.py)) — they don't bitrot.
+
 ## 🧠 The Three Modeling Paradigms
 
 Lingo gives you the right abstraction for every type of logic.
