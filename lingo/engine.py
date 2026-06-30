@@ -129,11 +129,8 @@ class Engine:
             options="\n".join([f"- {opt}" for opt in mapping.keys()]),
             format=model_cls.model_json_schema(),
         )
-        call_messages = self._expand_content(
-            context, *instructions, Message.system(prompt)
-        )
 
-        response = await self.create(context, model_cls, *call_messages)
+        response = await self.create(context, model_cls, *instructions, Message.system(prompt))
         return mapping[response.result]  # type: ignore
 
     async def decide(self, context: Context, *instructions: str | Message) -> bool:
@@ -142,11 +139,8 @@ class Engine:
         """
         model_cls = self._create_cot_model("Decide", bool)
         prompt = DEFAULT_DECIDE_PROMPT.format(format=model_cls.model_json_schema())
-        call_messages = self._expand_content(
-            context, *instructions, Message.system(prompt)
-        )
 
-        response = await self.create(context, model_cls, *call_messages)
+        response = await self.create(context, model_cls, *instructions, Message.system(prompt))
         return response.result  # type: ignore
 
     async def equip(self, context: Context, *tools: Tool) -> Tool:
@@ -172,9 +166,7 @@ class Engine:
             tools="\n".join([f"- {t.name}: {t.description}" for t in _tools]),
             format=model_cls.model_json_schema(),
         )
-        call_messages = self._expand_content(context, Message.system(prompt))
-
-        response = await self.create(context, model_cls, *call_messages)
+        response = await self.create(context, model_cls, Message.system(prompt))
         return tool_map[response.result]  # type: ignore
 
     async def invoke(
@@ -219,13 +211,9 @@ class Engine:
             schema=model_cls.model_json_schema(),
         )
 
-        call_messages = self._expand_content(
-            context, *instructions, Message.system(prompt_str)
-        )
-
         # The LLM generates its "best guess" for all params
         generated_params: BaseModel = await self.create(
-            context, model_cls, *call_messages
+            context, model_cls, *instructions, Message.system(prompt_str)
         )
         generated_dict = generated_params.model_dump()
 

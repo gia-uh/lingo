@@ -610,3 +610,110 @@ async def test_full_infer_pipeline():
     create_mock.assert_awaited_once()
     # kwargs ("override") must win over generated value
     assert result["x"] == "override"
+
+
+# ---------------------------------------------------------------------------
+# Context-doubling regression tests (small-model context-window bug)
+# ---------------------------------------------------------------------------
+# decide/equip/infer/choose used to pre-expand the context with
+# _expand_content() and then pass the expanded list as *instructions to
+# Engine.create(), which calls _expand_content() again — sending 2*N
+# context messages to the LLM instead of N.  For small models (Qwen 3.5 9b,
+# etc.) with limited context windows this caused the agentic loop to break
+# after the first tool call (tool results inflate context, doubled sends push
+# past the model's limit).
+
+
+def _ctx_with_tool_result() -> Context:
+    """Three-message context simulating state after one tool call."""
+    return Context([
+        Message.system("You are an agent."),
+        Message.user("Do the task"),
+        Message.system("[Tool result] ran with {'x': 'hello'}"),
+    ])
+
+
+def _counting_llm() -> tuple[LLM, list[int]]:
+    """Return a mock LLM and a list that accumulates message counts per create() call.
+
+    The create() spy records how many messages were sent and then raises so the
+    caller's try/except can handle it; only the count matters for these tests.
+    """
+    counts: list[int] = []
+    llm = MagicMock(spec=LLM)
+
+    async def fake_create(model, messages, **kwargs):
+        counts.append(len(messages))
+        raise StopIteration("count captured")  # bail out; caller catches
+
+    llm.create = fake_create
+    return llm, counts
+
+
+@pytest.mark.asyncio
+async def test_decide_does_not_double_context_messages():
+    """decide() must send N+2 messages (context + instruction + schema), not 2N+2."""
+    ctx = _ctx_with_tool_result()
+    N = len(ctx.messages)  # 3
+
+    llm, counts = _counting_llm()
+    engine = Engine(llm)
+
+    try:
+        await engine.decide(ctx, "Is the task done?")
+    except Exception:
+        pass
+
+    assert counts, "LLM.create was never called"
+    # N context + 1 decide instruction + 1 decide-format prompt + 1 create schema = N+3
+    assert counts[0] <= N + 4, (
+        f"decide() sent {counts[0]} messages to LLM for N={N} context messages; "
+        f"expected ≤{N + 4} (context was doubled: 2*{N} = {2*N})"
+    )
+
+
+@pytest.mark.asyncio
+async def test_equip_does_not_double_context_messages():
+    """equip() must send N+2 messages (context + equip_prompt + schema), not 2N+2."""
+    ctx = _ctx_with_tool_result()
+    N = len(ctx.messages)  # 3
+    t1 = SimpleTool("t1")
+    t2 = SimpleTool("t2")
+
+    llm, counts = _counting_llm()
+    engine = Engine(llm)
+
+    try:
+        await engine.equip(ctx, t1, t2)
+    except Exception:
+        pass
+
+    assert counts, "LLM.create was never called"
+    # N context + 1 equip prompt + 1 create schema = N+2
+    assert counts[0] <= N + 3, (
+        f"equip() sent {counts[0]} messages to LLM for N={N} context messages; "
+        f"expected ≤{N + 3} (context was doubled: 2*{N} = {2*N})"
+    )
+
+
+@pytest.mark.asyncio
+async def test_infer_does_not_double_context_messages():
+    """infer() must send N+2 messages (context + invoke_prompt + schema), not 2N+2."""
+    ctx = _ctx_with_tool_result()
+    N = len(ctx.messages)  # 3
+    t = SimpleTool("t1")
+
+    llm, counts = _counting_llm()
+    engine = Engine(llm)
+
+    try:
+        await engine.infer(ctx, t)
+    except Exception:
+        pass
+
+    assert counts, "LLM.create was never called"
+    # N context + 1 invoke prompt + 1 create schema = N+2
+    assert counts[0] <= N + 3, (
+        f"infer() sent {counts[0]} messages to LLM for N={N} context messages; "
+        f"expected ≤{N + 3} (context was doubled: 2*{N} = {2*N})"
+    )
