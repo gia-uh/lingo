@@ -130,7 +130,9 @@ class Engine:
             format=model_cls.model_json_schema(),
         )
 
-        response = await self.create(context, model_cls, *instructions, Message.system(prompt))
+        response = await self.create(
+            context, model_cls, *instructions, Message.system(prompt)
+        )
         return mapping[response.result]  # type: ignore
 
     async def decide(self, context: Context, *instructions: str | Message) -> bool:
@@ -140,7 +142,9 @@ class Engine:
         model_cls = self._create_cot_model("Decide", bool)
         prompt = DEFAULT_DECIDE_PROMPT.format(format=model_cls.model_json_schema())
 
-        response = await self.create(context, model_cls, *instructions, Message.system(prompt))
+        response = await self.create(
+            context, model_cls, *instructions, Message.system(prompt)
+        )
         return response.result  # type: ignore
 
     async def equip(self, context: Context, *tools: Tool) -> Tool:

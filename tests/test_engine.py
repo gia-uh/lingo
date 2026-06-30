@@ -626,11 +626,13 @@ async def test_full_infer_pipeline():
 
 def _ctx_with_tool_result() -> Context:
     """Three-message context simulating state after one tool call."""
-    return Context([
-        Message.system("You are an agent."),
-        Message.user("Do the task"),
-        Message.system("[Tool result] ran with {'x': 'hello'}"),
-    ])
+    return Context(
+        [
+            Message.system("You are an agent."),
+            Message.user("Do the task"),
+            Message.system("[Tool result] ran with {'x': 'hello'}"),
+        ]
+    )
 
 
 def _counting_llm() -> tuple[LLM, list[int]]:
@@ -668,7 +670,7 @@ async def test_decide_does_not_double_context_messages():
     # N context + 1 decide instruction + 1 decide-format prompt + 1 create schema = N+3
     assert counts[0] <= N + 4, (
         f"decide() sent {counts[0]} messages to LLM for N={N} context messages; "
-        f"expected ≤{N + 4} (context was doubled: 2*{N} = {2*N})"
+        f"expected ≤{N + 4} (context was doubled: 2*{N} = {2 * N})"
     )
 
 
@@ -692,7 +694,7 @@ async def test_equip_does_not_double_context_messages():
     # N context + 1 equip prompt + 1 create schema = N+2
     assert counts[0] <= N + 3, (
         f"equip() sent {counts[0]} messages to LLM for N={N} context messages; "
-        f"expected ≤{N + 3} (context was doubled: 2*{N} = {2*N})"
+        f"expected ≤{N + 3} (context was doubled: 2*{N} = {2 * N})"
     )
 
 
@@ -715,5 +717,5 @@ async def test_infer_does_not_double_context_messages():
     # N context + 1 invoke prompt + 1 create schema = N+2
     assert counts[0] <= N + 3, (
         f"infer() sent {counts[0]} messages to LLM for N={N} context messages; "
-        f"expected ≤{N + 3} (context was doubled: 2*{N} = {2*N})"
+        f"expected ≤{N + 3} (context was doubled: 2*{N} = {2 * N})"
     )
