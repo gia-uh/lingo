@@ -186,7 +186,14 @@ class Message(BaseModel):
 
         # 1. Handle raw strings (Standard Text)
         if isinstance(content, str):
-            dump["content"] = content
+            # Tool-calling assistant messages with no text content must carry
+            # content:null rather than content:"". The OpenAI spec allows null
+            # here; strict providers (e.g. Qwen via OpenRouter) reject "" and
+            # misinterpret the conversation, causing the agent loop to stall.
+            if self.tool_calls and not content:
+                dump["content"] = None
+            else:
+                dump["content"] = content
 
         # 2. Handle structured Content objects (Images, Audio, etc.)
         elif isinstance(content, Content):

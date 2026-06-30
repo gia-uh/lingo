@@ -57,6 +57,28 @@ def test_tool_message_dump_includes_tool_call_id():
     )
 
 
+def test_assistant_tool_call_empty_content_dumps_null():
+    """Strict providers (e.g. Qwen via OpenRouter) reject content:"" on
+    tool-calling turns; the OpenAI spec allows null here. Regression for the
+    'agent cuts after first tool call with small models' bug."""
+    tc = ToolCall(id="c1", name="bash", arguments={"cmd": "ls"})
+    msg = Message.assistant("", tool_calls=[tc])
+    dump = msg.model_dump()
+    assert dump["content"] is None, (
+        f"content must be null (not \"\") when tool_calls are present and "
+        f"content is empty; got {dump['content']!r}"
+    )
+
+
+def test_assistant_tool_call_with_text_preserves_content():
+    """If the model emits both text and tool calls (rare but valid), the
+    text must be preserved in the dump."""
+    tc = ToolCall(id="c1", name="bash", arguments={"cmd": "ls"})
+    msg = Message.assistant("I'll run ls for you.", tool_calls=[tc])
+    dump = msg.model_dump()
+    assert dump["content"] == "I'll run ls for you."
+
+
 def test_tool_call_round_trips_through_dump():
     """A full conversation segment (user → assistant.tool_calls → tool → assistant)
     should dump cleanly and the dumps should be ready to send back to OpenAI."""

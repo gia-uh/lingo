@@ -9,7 +9,7 @@ from .state import State
 
 from purely import depends
 
-__version__ = "2.0.4"
+__version__ = "2.0.5"
 
 __all__ = [
     "Context",
