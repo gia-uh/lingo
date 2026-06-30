@@ -65,7 +65,7 @@ def test_assistant_tool_call_empty_content_dumps_null():
     msg = Message.assistant("", tool_calls=[tc])
     dump = msg.model_dump()
     assert dump["content"] is None, (
-        f"content must be null (not \"\") when tool_calls are present and "
+        f'content must be null (not "") when tool_calls are present and '
         f"content is empty; got {dump['content']!r}"
     )
 
