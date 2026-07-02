@@ -7,6 +7,7 @@ from lingo.llm import tool_to_openai_schema
 
 # --- Task 1: richer type mapping ---
 
+
 def test_literal_becomes_enum():
     s = j(Literal["a", "b"])
     assert s["enum"] == ["a", "b"]
@@ -32,6 +33,7 @@ def test_plain_types_unchanged():
 
 # --- Task 2: defaults + docstring param docs ---
 
+
 @lingo_tool
 async def grep(pattern: str, path: str = ".") -> str:
     """Search files.
@@ -53,6 +55,7 @@ def test_default_param_not_required_and_documented():
 
 
 # --- Task 3: pass-through pre-built schema ---
+
 
 def test_prebuilt_schema_passthrough():
     grep.json_schema = {
