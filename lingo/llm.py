@@ -228,41 +228,86 @@ class Message(BaseModel):
         return dump
 
 
+_SCALAR_JSON = {str: "string", int: "integer", float: "number", bool: "boolean"}
+
+
 def _python_type_to_json_schema(t) -> dict:
-    """Map a Python type annotation to a JSON Schema fragment."""
+    """Map a Python type annotation to a JSON Schema fragment.
+
+    Handles scalars, ``Literal`` (→ enum), ``list[X]`` (→ array + items),
+    and ``Optional[X]`` / ``X | None`` (→ nullable), falling back to string
+    for anything unrecognized.
+    """
+    import types as _types
     import typing
 
-    if t is str:
-        return {"type": "string"}
-    if t is int:
-        return {"type": "integer"}
-    if t is float:
-        return {"type": "number"}
-    if t is bool:
-        return {"type": "boolean"}
-    if t is list or typing.get_origin(t) is list:
-        return {"type": "array"}
-    if t is dict or typing.get_origin(t) is dict:
+    origin = typing.get_origin(t)
+    args = typing.get_args(t)
+
+    # Literal[...] -> enum
+    if origin is typing.Literal:
+        vals = list(args)
+        elem = _SCALAR_JSON.get(type(vals[0]), "string") if vals else "string"
+        return {"type": elem, "enum": vals}
+
+    # Optional[X] / X | None -> nullable
+    union_types = (typing.Union, getattr(_types, "UnionType", None))
+    if origin in union_types and origin is not None:
+        non_none = [a for a in args if a is not type(None)]
+        if len(non_none) == 1:
+            inner = _python_type_to_json_schema(non_none[0])
+            it = inner.get("type", "string")
+            if isinstance(it, str):
+                inner["type"] = [it, "null"]
+            return inner
+
+    # list[X] -> array + items
+    if t is list or origin is list:
+        items = _python_type_to_json_schema(args[0]) if args else {"type": "string"}
+        return {"type": "array", "items": items}
+
+    if t is dict or origin is dict:
         return {"type": "object"}
+
+    if t in _SCALAR_JSON:
+        return {"type": _SCALAR_JSON[t]}
     return {"type": "string"}  # safe fallback
 
 
 def tool_to_openai_schema(tool_obj) -> dict:
-    """Convert a lingo.Tool into an OpenAI tools[] entry."""
-    params = tool_obj.parameters()
-    properties = {
-        name: _python_type_to_json_schema(ptype) for name, ptype in params.items()
-    }
+    """Convert a lingo.Tool into an OpenAI tools[] entry.
+
+    If the tool carries a pre-built ``json_schema`` (e.g. an MCP tool that
+    already ships a full JSON Schema), it is used verbatim. Otherwise the
+    schema is derived from ``parameters()`` — honoring optional defaults and
+    docstring ``Args:`` descriptions.
+    """
+    prebuilt = getattr(tool_obj, "json_schema", None)
+    if prebuilt:
+        params_schema = prebuilt
+    else:
+        params = tool_obj.parameters()
+        defaults = tool_obj.defaults()
+        docs = tool_obj.param_docs()
+        properties: dict = {}
+        for name, ptype in params.items():
+            prop = _python_type_to_json_schema(ptype)
+            if name in docs:
+                prop["description"] = docs[name]
+            if name in defaults:
+                prop["default"] = defaults[name]
+            properties[name] = prop
+        params_schema = {
+            "type": "object",
+            "properties": properties,
+            "required": [n for n in params if n not in defaults],
+        }
     return {
         "type": "function",
         "function": {
             "name": tool_obj.name,
             "description": tool_obj.description.strip(),
-            "parameters": {
-                "type": "object",
-                "properties": properties,
-                "required": list(params.keys()),
-            },
+            "parameters": params_schema,
         },
     }
 
