@@ -76,3 +76,44 @@ async def test_index_wizard_runs():
         )
 
     assert "All done" in out or "Alice" in out
+
+
+# ---------------------------------------------------------------------------
+# index_llm.py — native tool-calling loop from docs/llm.md
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_index_llm_runs():
+    """index_llm.py: tool-calling loop with get_weather and add."""
+    import importlib
+    from lingo.llm import LLM, ToolCall, Usage
+
+    mod = importlib.import_module("examples.index_llm")
+
+    turn1 = Message.assistant(
+        "",
+        tool_calls=[
+            ToolCall(id="c1", name="get_weather", arguments={"city": "Havana"}),
+            ToolCall(id="c2", name="add", arguments={"a": 21, "b": 21}),
+        ],
+        stop_reason="tool_calls",
+        usage=Usage(prompt_tokens=10, completion_tokens=5, total_tokens=15),
+    )
+    turn2 = Message.assistant(
+        "The weather in Havana is sunny and 21+21=42.",
+        stop_reason="stop",
+        usage=Usage(prompt_tokens=20, completion_tokens=10, total_tokens=30),
+    )
+
+    call_count = 0
+
+    async def mock_chat(self, messages, tools=None, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        return turn1 if call_count == 1 else turn2
+
+    with patch.object(LLM, "chat", new=mock_chat):
+        await mod._main_async()
+
+    assert call_count == 2
