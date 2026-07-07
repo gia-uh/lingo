@@ -7,16 +7,12 @@ from typing import Any, Callable, Literal, Union
 from pydantic import BaseModel, Field
 import openai
 
-
 class Usage(BaseModel):
     """Token usage statistics for an LLM interaction."""
 
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
-
-
-# --- Multimodal Content Models ---
 
 
 class Content(BaseModel):
@@ -70,18 +66,12 @@ class FileContent(Content):
     file_url: dict[str, str] = Field(description="Dictionary containing 'url'")
 
 
-# --- Tool Call Model ---
-
-
 class ToolCall(BaseModel):
     """A tool-call request emitted by the LLM in an assistant message."""
 
     id: str
     name: str
     arguments: dict = Field(default_factory=dict)
-
-
-# --- Message Model ---
 
 
 class Message(BaseModel):
@@ -137,8 +127,6 @@ class Message(BaseModel):
     def tool(cls, content: Any, tool_call_id: str | None = None) -> "Message":
         return cls(role="tool", content=content, tool_call_id=tool_call_id)
 
-    # --- Multimodal Helper Methods ---
-
     @classmethod
     def local_image(cls, path: str, detail: str = "auto") -> "Message":
         """Loads a local image and encodes it as base64."""
@@ -166,7 +154,6 @@ class Message(BaseModel):
             data = base64.b64encode(f.read()).decode("utf-8")
 
         if not format:
-            # Try to get format from extension (e.g., .mp3 -> mp3)
             _, ext = os.path.splitext(path)
             format = ext.strip(".").lower() or "mp3"
 
@@ -178,13 +165,10 @@ class Message(BaseModel):
         return cls.user(VideoContent(video_url={"url": url}))
 
     def model_dump(self) -> dict[str, Any]:
-        """
-        Custom model dump to handle structured Content and Pydantic models.
-        """
+        """Custom model dump to handle structured Content and Pydantic models."""
         dump = dict(role=self.role)
         content = self.content
 
-        # 1. Handle raw strings (Standard Text)
         if isinstance(content, str):
             # Tool-calling assistant messages with no text content must carry
             # content:null rather than content:"". The OpenAI spec allows null
@@ -194,20 +178,11 @@ class Message(BaseModel):
                 dump["content"] = None
             else:
                 dump["content"] = content
-
-        # 2. Handle structured Content objects (Images, Audio, etc.)
         elif isinstance(content, Content):
-            # We dump the Content object as a dictionary
-            # OpenAI/OpenRouter expect a single-item list for multimodal content parts
-            # or the dict directly depending on the specific API version.
-            # To follow the most common multimodal schema:
             dump["content"] = [content.model_dump()]
-
-        # 3. Handle legacy Pydantic model serialization (for structured output responses)
         elif isinstance(content, BaseModel):
             dump["content"] = content.model_dump_json()
 
-        # Include tool_calls for assistant messages (required by OpenAI API).
         if self.tool_calls:
             dump["tool_calls"] = [
                 {
@@ -221,7 +196,6 @@ class Message(BaseModel):
                 for tc in self.tool_calls
             ]
 
-        # Include tool_call_id for tool-result messages (required by OpenAI API).
         if self.tool_call_id is not None:
             dump["tool_call_id"] = self.tool_call_id
 
@@ -353,8 +327,7 @@ class LLM:
         on_create: Callable[[BaseModel], Any] | None = None,
         on_message: Callable[[Message], Any] | None = None,
         on_toolcall_start: Callable[[str, str], Any] | None = None,
-        on_toolcall_delta: Callable[[str, str], Any]
-        | None = None,  # (call_id, cumulative_args_so_far)
+        on_toolcall_delta: Callable[[str, str], Any] | None = None,
         on_toolcall_end: Callable[[str, dict], Any] | None = None,
         reasoning: dict[str, Any] | None = None,
         **extra_kwargs,
@@ -404,28 +377,24 @@ class LLM:
     async def on_token(self, token: str):
         if self._on_token:
             resp = self._on_token(token)
-
             if inspect.iscoroutine(resp):
                 await resp
 
     async def on_reasoning_token(self, token: str):
         if self._on_reasoning_token:
             resp = self._on_reasoning_token(token)
-
             if inspect.iscoroutine(resp):
                 await resp
 
     async def on_create(self, obj):
         if self._on_create:
             resp = self._on_create(obj)
-
             if inspect.iscoroutine(resp):
                 await resp
 
     async def on_message(self, msg: Message):
         if self._on_message:
             resp = self._on_message(msg)
-
             if inspect.iscoroutine(resp):
                 await resp
 
@@ -473,14 +442,9 @@ class LLM:
         usage: Usage | None = None
         last_finish_reason: str | None = None
         tool_call_accumulator: dict[int, dict] = {}
-        # Convert Message objects to dictionaries for the API
         api_messages = [msg.model_dump() for msg in messages]
 
         call_kwargs = self.extra_kwargs | kwargs
-        # `reasoning` is an OpenRouter-style body extension, not a known
-        # OpenAI SDK kwarg. The SDK rejects unknown direct kwargs, so we
-        # route it through `extra_body` (which the SDK merges into the
-        # request JSON). Per-call overrides win over the constructor.
         extra_body = dict(call_kwargs.pop("extra_body", None) or {})
         per_call_reasoning = call_kwargs.pop("reasoning", None)
         reasoning = (
@@ -542,7 +506,6 @@ class LLM:
                         slot["id"] = tc.id
                     if tc.function and tc.function.name and slot["name"] is None:
                         slot["name"] = tc.function.name
-                    # Fire start callback once both id and name are known (typically after first chunk per index).
                     if (
                         slot["id"] is not None
                         and slot["name"] is not None
@@ -595,10 +558,8 @@ class LLM:
 
         Fires the on_create callback with the parsed model.
         """
-        # Convert Message objects to dictionaries for the API
         api_messages = [msg.model_dump() for msg in messages]
 
-        # Use the non-streaming, async `parse` method as requested
         response = await self.client.chat.completions.parse(
             model=self.model,  # type: ignore
             messages=api_messages,  # type: ignore
@@ -609,7 +570,6 @@ class LLM:
         if result is None:
             raise ValueError("Failed to parse the response from the model.")
 
-        # Capture usage data
         if response.usage:
             usage = Usage(
                 prompt_tokens=response.usage.prompt_tokens,
