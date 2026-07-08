@@ -7,6 +7,7 @@ from typing import Any, Callable, Literal, Union
 from pydantic import BaseModel, Field
 import openai
 
+
 class Usage(BaseModel):
     """Token usage statistics for an LLM interaction."""
 
@@ -127,48 +128,50 @@ class Message(BaseModel):
     def tool(cls, content: Any, tool_call_id: str | None = None) -> "Message":
         return cls(role="tool", content=content, tool_call_id=tool_call_id)
 
+
     @classmethod
     def local_image(cls, path: str, detail: str = "auto") -> "Message":
         """Loads a local image and encodes it as base64."""
         with open(path, "rb") as f:
             data = base64.b64encode(f.read()).decode("utf-8")
-
+    
         mime, _ = mimetypes.guess_type(path)
         mime = mime or "image/jpeg"
-
+    
         return cls.user(
             ImageContent(
                 image_url={"url": f"data:{mime};base64,{data}", "detail": detail}
             )
         )
-
+    
     @classmethod
     def online_image(cls, url: str, detail: str = "auto") -> "Message":
         """Creates a message with an online image URL."""
         return cls.user(ImageContent(image_url={"url": url, "detail": detail}))
-
+    
     @classmethod
     def local_audio(cls, path: str, format: str | None = None) -> "Message":
         """Loads a local audio file and encodes it as base64."""
         with open(path, "rb") as f:
             data = base64.b64encode(f.read()).decode("utf-8")
-
+    
         if not format:
             _, ext = os.path.splitext(path)
             format = ext.strip(".").lower() or "mp3"
-
+    
         return cls.user(AudioContent(input_audio={"data": data, "format": format}))
-
+    
     @classmethod
     def online_video(cls, url: str) -> "Message":
         """Creates a message with an online video URL."""
         return cls.user(VideoContent(video_url={"url": url}))
 
+
     def model_dump(self) -> dict[str, Any]:
         """Custom model dump to handle structured Content and Pydantic models."""
         dump = dict(role=self.role)
         content = self.content
-
+    
         if isinstance(content, str):
             # Tool-calling assistant messages with no text content must carry
             # content:null rather than content:"". The OpenAI spec allows null
@@ -182,7 +185,7 @@ class Message(BaseModel):
             dump["content"] = [content.model_dump()]
         elif isinstance(content, BaseModel):
             dump["content"] = content.model_dump_json()
-
+    
         if self.tool_calls:
             dump["tool_calls"] = [
                 {
@@ -195,10 +198,10 @@ class Message(BaseModel):
                 }
                 for tc in self.tool_calls
             ]
-
+    
         if self.tool_call_id is not None:
             dump["tool_call_id"] = self.tool_call_id
-
+    
         return dump
 
 
@@ -311,6 +314,7 @@ def _read_reasoning(delta: Any) -> str | None:
     return None
 
 
+
 class LLM:
     """
     A client for interacting with a Large Language Model.
@@ -334,7 +338,7 @@ class LLM:
     ):
         """
         Initializes the LLM client.
-
+    
         Args:
             model: The name of the model to use (e.g., "gpt-4").
             api_key: The API key. Defaults to os.getenv("API_KEY").
@@ -362,51 +366,52 @@ class LLM:
         self._on_toolcall_delta = on_toolcall_delta
         self._on_toolcall_end = on_toolcall_end
         self._reasoning = reasoning
-
+    
         if model is None:
             model = os.getenv("MODEL")
         if base_url is None:
             base_url = os.getenv("BASE_URL")
         if api_key is None:
             api_key = os.getenv("API_KEY")
-
+    
         self.model = model
         self.client = openai.AsyncOpenAI(base_url=base_url, api_key=api_key)
         self.extra_kwargs = extra_kwargs
+
 
     async def on_token(self, token: str):
         if self._on_token:
             resp = self._on_token(token)
             if inspect.iscoroutine(resp):
                 await resp
-
+    
     async def on_reasoning_token(self, token: str):
         if self._on_reasoning_token:
             resp = self._on_reasoning_token(token)
             if inspect.iscoroutine(resp):
                 await resp
-
+    
     async def on_create(self, obj):
         if self._on_create:
             resp = self._on_create(obj)
             if inspect.iscoroutine(resp):
                 await resp
-
+    
     async def on_message(self, msg: Message):
         if self._on_message:
             resp = self._on_message(msg)
             if inspect.iscoroutine(resp):
                 await resp
-
+    
     async def on_toolcall_start(self, call_id: str, name: str):
         if self._on_toolcall_start:
             resp = self._on_toolcall_start(call_id, name)
             if inspect.iscoroutine(resp):
                 await resp
-
+    
     async def on_toolcall_delta(self, call_id: str, partial_args: str):
         """Dispatch a streamed-tool-call args update.
-
+    
         `partial_args` is the accumulated args string for this call so far
         (cumulative across all chunks received), not the incremental fragment.
         Consumers building a live-render of the partial-parsed JSON can use
@@ -416,12 +421,13 @@ class LLM:
             resp = self._on_toolcall_delta(call_id, partial_args)
             if inspect.iscoroutine(resp):
                 await resp
-
+    
     async def on_toolcall_end(self, call_id: str, args: dict):
         if self._on_toolcall_end:
             resp = self._on_toolcall_end(call_id, args)
             if inspect.iscoroutine(resp):
                 await resp
+
 
     async def chat(
         self,
@@ -443,7 +449,7 @@ class LLM:
         last_finish_reason: str | None = None
         tool_call_accumulator: dict[int, dict] = {}
         api_messages = [msg.model_dump() for msg in messages]
-
+    
         call_kwargs = self.extra_kwargs | kwargs
         extra_body = dict(call_kwargs.pop("extra_body", None) or {})
         per_call_reasoning = call_kwargs.pop("reasoning", None)
@@ -454,10 +460,10 @@ class LLM:
             extra_body["reasoning"] = reasoning
         if extra_body:
             call_kwargs["extra_body"] = extra_body
-
+    
         if tools:
             call_kwargs["tools"] = [tool_to_openai_schema(t) for t in tools]
-
+    
         async for chunk in await self.client.chat.completions.create(
             model=self.model,  # type: ignore
             messages=api_messages,  # type: ignore
@@ -471,26 +477,26 @@ class LLM:
                     completion_tokens=chunk.usage.completion_tokens,
                     total_tokens=chunk.usage.total_tokens,
                 )
-
+    
             if not chunk.choices:
                 continue
-
+    
             fr = getattr(chunk.choices[0], "finish_reason", None)
             if fr is not None:
                 last_finish_reason = fr
-
+    
             delta = chunk.choices[0].delta
-
+    
             reasoning = _read_reasoning(delta)
             if reasoning and isinstance(reasoning, str):
                 reasoning_chunks.append(reasoning)
                 await self.on_reasoning_token(reasoning)
-
+    
             content = getattr(delta, "content", None)
             if content:
                 await self.on_token(content)
                 result_chunks.append(content)
-
+    
             tc_chunks = getattr(delta, "tool_calls", None)
             if tc_chunks:
                 for tc in tc_chunks:
@@ -516,7 +522,7 @@ class LLM:
                     if tc.function and tc.function.arguments:
                         slot["args"] += tc.function.arguments
                         await self.on_toolcall_delta(slot["id"] or "", slot["args"])
-
+    
         tool_calls = None
         if tool_call_accumulator:
             tool_calls = []
@@ -535,7 +541,7 @@ class LLM:
                 )
                 tool_calls.append(tc)
                 await self.on_toolcall_end(tc.id, tc.arguments)
-
+    
         thinking = "".join(reasoning_chunks) if reasoning_chunks else None
         result = Message.assistant(
             "".join(result_chunks),
@@ -545,8 +551,9 @@ class LLM:
             stop_reason=last_finish_reason,
         )
         await self.on_message(result)
-
+    
         return result
+
 
     async def create[T: BaseModel](
         self, model: type[T], messages: list["Message"], **kwargs
@@ -555,11 +562,11 @@ class LLM:
         Sends a message list and forces the LLM to respond
         with a JSON object matching the Pydantic model
         using the non-streaming `parse` method.
-
+    
         Fires the on_create callback with the parsed model.
         """
         api_messages = [msg.model_dump() for msg in messages]
-
+    
         response = await self.client.chat.completions.parse(
             model=self.model,  # type: ignore
             messages=api_messages,  # type: ignore
@@ -569,7 +576,7 @@ class LLM:
         result = response.choices[0].message.parsed
         if result is None:
             raise ValueError("Failed to parse the response from the model.")
-
+    
         if response.usage:
             usage = Usage(
                 prompt_tokens=response.usage.prompt_tokens,
@@ -578,7 +585,8 @@ class LLM:
             )
         else:
             usage = None
-
+    
         await self.on_message(Message.assistant(result.model_dump_json(), usage=usage))
         await self.on_create(result)
         return result
+
