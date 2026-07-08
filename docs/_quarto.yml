@@ -1,0 +1,43 @@
+project:
+  type: website
+  output-dir: ../site
+
+website:
+  title: "lingo"
+  description: "A minimal Python toolkit for building LLM-powered applications."
+  site-url: https://uhgia.org/lingo/
+  repo-url: https://github.com/gia-uh/lingo
+
+  navbar:
+    background: dark
+    left:
+      - href: index.md
+        text: Overview
+      - href: lingo.md
+        text: Guide
+      - text: Chapters
+        menu:
+          - href: llm.md
+            text: "→ llm.md"
+          - href: user-guide.md
+            text: User Guide
+          - href: design.md
+            text: Design
+          - href: deploy.md
+            text: Deployment
+          - href: develop.md
+            text: Development
+    right:
+      - icon: github
+        href: https://github.com/gia-uh/lingo
+
+format:
+  html:
+    theme:
+      dark: darkly
+      light: flatly
+    highlight-style: dracula
+    toc: true
+    toc-depth: 3
+    code-copy: true
+    smooth-scroll: true

@@ -15,16 +15,19 @@ from lingo.mock import MockLLM
 
 def _scripted_input_fn(messages):
     it = iter(messages)
+
     def input_fn():
         try:
             return next(it)
         except StopIteration:
             raise EOFError
+
     return input_fn
 
 
 async def _drive(bot, user_messages, mock_responses):
     from lingo.cli import run
+
     bot.llm = MockLLM(responses=mock_responses)
     captured = []
     await run(
@@ -39,6 +42,7 @@ async def _drive(bot, user_messages, mock_responses):
 async def test_index_hello_runs():
     """index_hello.py: minimal app replies to a message."""
     import importlib
+
     mod = importlib.import_module("examples.index_hello")
     out = await _drive(mod.app, ["hi"], ["Hello! How can I help?"])
     assert "Hello" in out
@@ -48,6 +52,7 @@ async def test_index_hello_runs():
 async def test_index_wizard_runs():
     """index_wizard.py: onboarding skill drives through choose/ask/create/decide."""
     import importlib
+
     mod = importlib.import_module("examples.index_wizard")
 
     from lingo.engine import Engine

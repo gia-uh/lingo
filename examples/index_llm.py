@@ -9,6 +9,7 @@ Demonstrates:
 Run:
     API_KEY=... python examples/index_llm.py
 """
+
 import asyncio
 from lingo import LLM, Message, tool
 

@@ -9,6 +9,7 @@ Demonstrates the four structured-output engine methods:
 Run:
     API_KEY=... python examples/index_wizard.py
 """
+
 from pydantic import BaseModel, Field
 from lingo import Lingo, Context, Engine
 from lingo.llm import Message
@@ -19,6 +20,7 @@ app = Lingo("OnboardingWizard", description="Walks a new user through account se
 
 class UserProfile(BaseModel):
     """Information to collect about the new user."""
+
     name: str = Field(description="Full name")
     email: str = Field(description="Email address")
     use_case: str = Field(description="What they want to use this for, one sentence")
@@ -38,7 +40,9 @@ async def onboarding(ctx: Context, eng: Engine):
     )
     await eng.reply(ctx, f"Setting up the {role} experience.")
 
-    raw = await eng.ask(ctx, "Tell me your name, email, and what you want to use this for.")
+    raw = await eng.ask(
+        ctx, "Tell me your name, email, and what you want to use this for."
+    )
     ctx.append(Message.user(raw))
 
     profile = await eng.create(ctx, UserProfile)
@@ -54,6 +58,7 @@ async def onboarding(ctx: Context, eng: Engine):
 
 def main():
     loop(app)
+
 
 if __name__ == "__main__":
     main()

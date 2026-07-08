@@ -3,9 +3,15 @@ name: Documentation Deployment
 on:
   release:
     types: [created]
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   deploy:
@@ -14,16 +20,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install Quarto
+        uses: quarto-dev/quarto-actions/setup@v2
+
+      - name: Render and deploy docs
+        uses: quarto-dev/quarto-actions/publish@v2
         with:
-          python-version: "3.12"
-
-      - name: Install uv
-        run: curl -LsSf https://astral.sh/uv/install.sh | sh
-
-      - name: Install dependencies
-        run: uv sync --all-extras --all-groups --no-editable
-
-      - name: Build and Deploy Docs
-        run: uv run mkdocs gh-deploy --force
+          target: gh-pages
+          path: docs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
