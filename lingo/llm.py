@@ -166,15 +166,14 @@ class Message(BaseModel):
         return cls.user(VideoContent(video_url={"url": url}))
 
     def model_dump(self) -> dict[str, Any]:
-        """Custom model dump to handle structured Content and Pydantic models."""
+        """Custom serialization to match the OpenAI wire format."""
         dump = dict(role=self.role)
         content = self.content
 
         if isinstance(content, str):
             # Tool-calling assistant messages with no text content must carry
-            # content:null rather than content:"". The OpenAI spec allows null
-            # here; strict providers (e.g. Qwen via OpenRouter) reject "" and
-            # misinterpret the conversation, causing the agent loop to stall.
+            # content:null. Strict providers (e.g. Qwen via OpenRouter) reject
+            # content:"" and misinterpret the conversation, stalling the loop.
             if self.tool_calls and not content:
                 dump["content"] = None
             else:
@@ -209,9 +208,8 @@ _SCALAR_JSON = {str: "string", int: "integer", float: "number", bool: "boolean"}
 def _python_type_to_json_schema(t) -> dict:
     """Map a Python type annotation to a JSON Schema fragment.
 
-    Handles scalars, ``Literal`` (→ enum), ``list[X]`` (→ array + items),
-    and ``Optional[X]`` / ``X | None`` (→ nullable), falling back to string
-    for anything unrecognized.
+    Handles scalars, Literal (→ enum), list[X] (→ array + items),
+    and Optional[X] / X | None (→ nullable). Falls back to string.
     """
     import types as _types
     import typing
@@ -250,12 +248,12 @@ def _python_type_to_json_schema(t) -> dict:
 
 
 def tool_to_openai_schema(tool_obj) -> dict:
-    """Convert a lingo.Tool into an OpenAI tools[] entry.
+    """Convert a lingo Tool into an OpenAI tools[] entry.
 
-    If the tool carries a pre-built ``json_schema`` (e.g. an MCP tool that
+    If the tool carries a pre-built json_schema (e.g. an MCP tool that
     already ships a full JSON Schema), it is used verbatim. Otherwise the
-    schema is derived from ``parameters()`` — honoring optional defaults and
-    docstring ``Args:`` descriptions.
+    schema is derived from parameters() — honoring optional defaults and
+    docstring Args: descriptions.
     """
     prebuilt = getattr(tool_obj, "json_schema", None)
     if prebuilt:
@@ -291,15 +289,7 @@ _REASONING_FIELDS = ("reasoning", "reasoning_content", "thoughts")
 
 
 def _read_reasoning(delta: Any) -> str | None:
-    """Pull a streamed reasoning fragment from a delta, handling provider variance.
-
-    Different providers expose reasoning under different field names:
-    OpenRouter unified and OpenAI o-series use ``reasoning``, some
-    DeepSeek/Anthropic paths use ``reasoning_content``, and some Gemini
-    paths use ``thoughts``. The OpenAI SDK preserves unknown fields via
-    ``model_extra``; we check both the typed attribute path and the
-    extras dict so we catch fields the SDK didn't model directly.
-    """
+    """Extract a reasoning fragment from a stream delta, across provider variance."""
     for name in _REASONING_FIELDS:
         value = getattr(delta, name, None)
         if value:
@@ -313,10 +303,7 @@ def _read_reasoning(delta: Any) -> str | None:
 
 
 class LLM:
-    """
-    A client for interacting with a Large Language Model.
-    Wraps an OpenAI-compatible client.
-    """
+    """A client wrapping AsyncOpenAI for streaming chat and structured output."""
 
     def __init__(
         self,
@@ -333,28 +320,6 @@ class LLM:
         reasoning: dict[str, Any] | None = None,
         **extra_kwargs,
     ):
-        """
-        Initializes the LLM client.
-
-        Args:
-            model: The name of the model to use (e.g., "gpt-4").
-            api_key: The API key. Defaults to os.getenv("API_KEY").
-            base_url: The API base URL. Defaults to os.getenv("BASE_URL").
-            on_token: A sync/async function called with each chat token.
-            on_reasoning_token: A sync/async function called with each
-                streamed reasoning/thinking fragment (OpenRouter
-                ``delta.reasoning``, OpenAI o-series, etc.).
-            on_create: A sync/async function called with the fully parsed
-                       Pydantic model from a `create` call.
-            on_message: A sync/async function called with every message (chat or create)
-                        useful mostly for login usage.
-            reasoning: Optional OpenRouter ``reasoning`` body kwarg
-                (e.g. ``{"effort": "high"}`` or ``{"max_tokens": 1024}``).
-                Injected only on the streaming ``chat()`` path; the
-                structured-output ``create()`` path never carries it,
-                because OpenAI's ``parse()`` rejects unknown kwargs.
-            **extra_kwargs: Additional arguments for the client (e.g., temperature).
-        """
         self._on_token = on_token
         self._on_reasoning_token = on_reasoning_token
         self._on_create = on_create
@@ -406,13 +371,7 @@ class LLM:
                 await resp
 
     async def on_toolcall_delta(self, call_id: str, partial_args: str):
-        """Dispatch a streamed-tool-call args update.
-
-        `partial_args` is the accumulated args string for this call so far
-        (cumulative across all chunks received), not the incremental fragment.
-        Consumers building a live-render of the partial-parsed JSON can use
-        this string directly without re-concatenating fragments.
-        """
+        """partial_args is the accumulated args string so far — cumulative, not incremental."""
         if self._on_toolcall_delta:
             resp = self._on_toolcall_delta(call_id, partial_args)
             if inspect.iscoroutine(resp):
@@ -430,21 +389,19 @@ class LLM:
         tools: list | None = None,
         **kwargs,
     ) -> "Message":
+        """Stream a chat request and return the completed Message.
+
+        Streams unconditionally — same cost as non-streaming, and callbacks
+        fire in real time. Tool calls accumulate across multiple chunks; the
+        returned Message carries them assembled and parsed.
         """
-        Sends a message list and returns the full assistant Message.
-        If an on_token callback is set, it will be triggered for each token.
-        If an on_reasoning_token callback is set and the provider streams
-        reasoning fragments (OpenRouter ``delta.reasoning``, OpenAI
-        o-series, DeepSeek/Anthropic ``reasoning_content``, Gemini
-        ``thoughts``), they are dispatched separately from content tokens.
-        """
-        result_chunks = []
+        result_chunks: list[str] = []
         reasoning_chunks: list[str] = []
         usage: Usage | None = None
         last_finish_reason: str | None = None
         tool_call_accumulator: dict[int, dict] = {}
-        api_messages = [msg.model_dump() for msg in messages]
 
+        api_messages = [msg.model_dump() for msg in messages]
         call_kwargs = self.extra_kwargs | kwargs
         extra_body = dict(call_kwargs.pop("extra_body", None) or {})
         per_call_reasoning = call_kwargs.pop("reasoning", None)
@@ -526,10 +483,6 @@ class LLM:
                 try:
                     parsed_args = json.loads(slot["args"]) if slot["args"] else {}
                 except json.JSONDecodeError:
-                    # Downstream consumers (e.g. lovelaice's harness) validate args against
-                    # the tool's Pydantic schema; a malformed-JSON case here becomes a
-                    # validation error one layer up, surfaced back to the LLM as a tool
-                    # error result. Silent {} keeps lingo agnostic about that policy.
                     parsed_args = {}
                 tc = ToolCall(
                     id=slot["id"] or "", name=slot["name"] or "", arguments=parsed_args
@@ -546,18 +499,15 @@ class LLM:
             stop_reason=last_finish_reason,
         )
         await self.on_message(result)
-
         return result
 
     async def create[T: BaseModel](
         self, model: type[T], messages: list["Message"], **kwargs
     ) -> T:
         """
-        Sends a message list and forces the LLM to respond
-        with a JSON object matching the Pydantic model
-        using the non-streaming `parse` method.
-
-        Fires the on_create callback with the parsed model.
+        Forces the LLM to respond with a JSON object matching the Pydantic model,
+        using the non-streaming `parse` endpoint. Reasoning kwargs are not forwarded
+        because `parse()` rejects unknown fields.
         """
         api_messages = [msg.model_dump() for msg in messages]
 
