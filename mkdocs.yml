@@ -1,31 +1,49 @@
-site_name: Lingo
-site_description: A minimal, async-native, and unopinionated toolkit for modern LLM applications.
+site_name: lingo
+site_description: A minimal Python library for building LLM-powered applications.
 site_author: Alejandro Piad
 repo_url: https://github.com/gia-uh/lingo
+repo_name: gia-uh/lingo
+docs_dir: book
 
 theme:
   name: material
   palette:
-    scheme: slate
-    primary: indigo
-    accent: indigo
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
   features:
     - content.code.copy
     - content.code.annotate
     - navigation.tabs
     - navigation.sections
     - navigation.top
+    - navigation.instant
+    - toc.follow
 
 nav:
-  - Overview: index.md
-  - User Guide: user-guide.md
-  - Architectural Design: design.md
-  - Execution & Deployment: deploy.md
-  - Development & Testing: develop.md
-  - AI Agent Skill: skill.md
+  - Introduction: 00-introduction.md
+  - "1. Hello, lingo": 01-hello-lingo.md
+  - "2. Messages and Context": 02-messages-and-context.md
+  - "3. The Engine": 03-the-engine.md
+  - "4. Flows": 04-flows.md
+  - "5. Tools": 05-tools.md
+  - "6. Skills and Routing": 06-skills-and-routing.md
+  - "7. State": 07-state.md
+  - "8. Patterns": 08-patterns.md
+  - "9. Native Tool Calling": 09-native-tools.md
 
 markdown_extensions:
   - admonition
+  - tables
   - pymdownx.highlight:
       anchor_linenums: true
       line_spans: __span
@@ -33,3 +51,5 @@ markdown_extensions:
   - pymdownx.inlinehilite
   - pymdownx.snippets
   - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
