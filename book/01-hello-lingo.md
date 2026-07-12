@@ -1,108 +1,108 @@
 # Chapter 1: Hello, lingo
 
-This chapter covers the three building blocks every lingo program starts with:
-the `LLM` client, the `Message` data model, and the `Lingo` chatbot.
+We want a Python program that talks to a language model. Not a one-shot script that fires a single prompt and exits — a real chatbot that holds a conversation, remembers what was said, and stays in character from the first message to the last.
 
-## The LLM client
+This chapter builds **PyTutor**, a terminal bot that answers Python questions. It runs from your command line, keeps a tutor persona, and grows the conversation with every turn. By the end, `examples/01_hello_lingo.py` will be a working script you can run right now.
 
-`LLM` is an async wrapper around the OpenAI-compatible API.
-Configure it with a model, a base URL, and an API key — or leave them as `None`
-and lingo reads `MODEL`, `BASE_URL`, and `API_KEY` from the environment.
+## The raw API
 
-The LLM exposes two async operations:
+At the lowest level, lingo exposes one operation: `LLM.chat(messages)`. It takes a list of typed conversation turns and returns a single reply.
 
-- `chat(messages)` — streams a conversation and returns an assistant `Message`.
-- `create(model, messages)` — forces a JSON response matching a Pydantic model.
+Those turns are `Message` objects, built with factory methods that make the role explicit:
 
-Callbacks let you react to tokens as they arrive:
+- `Message.system(text)` — instructions the model follows but the user never sees
+- `Message.user(text)` — what the user said
+- `Message.assistant(text)` — a reply from the model, or a scripted one you inject
 
-```python {name=ch01_callbacks}
-# LLM accepts callbacks for token-level events.
-# Useful for streaming UIs or logging.
-# llm = LLM(
-#     on_token=lambda t: print(t, end="", flush=True),
-#     on_message=lambda msg: print("\n--- done ---"),
-# )
+Here is the entire raw API for a single question-and-answer:
+
+```python
+import asyncio
+from lingo import LLM, Message
+
+async def ask_once():
+    llm = LLM()   # reads MODEL, BASE_URL, API_KEY from environment
+    reply = await llm.chat([
+        Message.system("You are a concise Python tutor."),
+        Message.user("What does the walrus operator do?"),
+    ])
+    print(reply.content)
+
+asyncio.run(ask_once())
 ```
 
-## Messages
+`LLM()` with no arguments reads three environment variables:
 
-`Message` is the unit of conversation. Build them with factory classmethods:
-
-```python {name=ch01_messages}
-def test_message_factories():
-    system_msg  = Message.system("You are a helpful assistant.")
-    user_msg    = Message.user("What is 2 + 2?")
-    assist_msg  = Message.assistant("4")
-    assert system_msg.role == "system"
-    assert user_msg.role == "user"
-    assert assist_msg.role == "assistant"
+```
+MODEL=gpt-4o-mini
+BASE_URL=https://api.openai.com/v1   # override for local models or other providers
+API_KEY=sk-...
 ```
 
-The role is always one of `"system"`, `"user"`, `"assistant"`, or `"tool"`.
-An assistant `Message` can carry tool calls and token usage statistics — lingo
-fills those automatically when it comes back from the LLM.
+This convention keeps credentials out of your code. Switching from OpenAI to a local Ollama instance means changing two env vars; nothing else changes.
 
-## The Lingo chatbot
+The raw API is enough for a one-shot script. But a chatbot needs more: a growing message history, a persistent system prompt, and an input loop. That plumbing is what `Lingo` is for.
 
-`Lingo` is the high-level facade. It manages conversation history and exposes
-a single `.chat(msg: str) -> Message` coroutine.
+## Building PyTutor
 
-```python {name=ch01_make_bot}
-def make_bot(*responses) -> Lingo:
-    llm = MockLLM(list(responses) if responses else ["Hello!"])
-    return Lingo(name="TestBot", description="A test bot.", llm=llm)
+`Lingo` is the high-level facade. You give it a name and a description; it handles everything else — creates the `LLM`, builds the system prompt, manages message history, and exposes a simple `.chat(str) → Message` coroutine.
+
+Our script opens by loading credentials from a `.env` file, the conventional place for development secrets:
+
+```python {export=examples/01_hello_lingo.py}
+import dotenv
+from lingo import Lingo
+from lingo.cli import loop
+
+dotenv.load_dotenv()
 ```
 
-Calling `.chat()` appends the user message to history, runs the flow, and returns
-the bot's reply. History grows with each call — the bot remembers the conversation.
+Next, the bot itself. `name` and `description` are not decorative — lingo injects them into the system prompt automatically, so the model knows its role before the first user message arrives:
 
-```python {name=ch01_test_basic_chat}
-@pytest.mark.asyncio
-async def test_basic_chat():
-    bot = make_bot("4")
-    reply = await bot.chat("What is 2 + 2?")
-    assert "4" in str(reply.content)
+```python {export=examples/01_hello_lingo.py}
 
-@pytest.mark.asyncio
-async def test_history_grows():
-    bot = make_bot("Hi!", "Doing well!")
-    await bot.chat("Hello")
-    await bot.chat("How are you?")
-    # user + assistant for each turn
-    assert len(bot.messages) == 4
+bot = Lingo(
+    name="PyTutor",
+    description="A friendly Python tutor. Explain concepts clearly and use short code examples.",
+)
 ```
 
-## System prompt
+## Running the conversation
 
-Give the bot a custom personality via `system_prompt`:
+`lingo.cli.loop` is a blocking REPL: it reads a line of input, calls `bot.chat()`, prints the reply, and repeats until the user types `exit` or hits Ctrl-C:
 
-```python {name=ch01_test_system_prompt}
-@pytest.mark.asyncio
-async def test_custom_system_prompt():
-    bot = Lingo(
-        name="Poet",
-        description="A poetry bot.",
-        system_prompt="You are {name}. {description} Speak only in verse.",
-        llm=MockLLM(["Roses are red."]),
-    )
-    reply = await bot.chat("Say hello.")
-    assert reply.content  # not empty
+```python {export=examples/01_hello_lingo.py}
+
+if __name__ == "__main__":
+    loop(bot)
 ```
 
-The `{name}` and `{description}` placeholders in `system_prompt` are filled
-automatically from the constructor arguments.
+Run it:
 
-## Test file
-
-```python {export=tests/test_ch01.py}
-import pytest
-from lingo import LLM, Message, Lingo
-from lingo.mock import MockLLM
-
-<<ch01_callbacks>>
-<<ch01_messages>>
-<<ch01_make_bot>>
-<<ch01_test_basic_chat>>
-<<ch01_test_system_prompt>>
 ```
+python examples/01_hello_lingo.py
+```
+
+Ask it anything:
+
+```
+You > What is a generator in Python?
+PyTutor > A generator is a function that yields values one at a time...
+
+You > Can you show me an example?
+PyTutor > Sure — here's a simple range-like generator...
+```
+
+The bot remembers what was said. Each call to `bot.chat()` appends the user message and the reply to the conversation history; the model sees the full exchange on every subsequent turn.
+
+## How the pieces connect
+
+Three components compose to make this work:
+
+- **`LLM`** wraps the API. One call, one message back. Stateless by design.
+- **`Message`** is the typed unit of conversation. Roles enforce the wire format every model expects.
+- **`Lingo`** owns state. It manages the message list, the system prompt, and the event loop internally. `LLM` is a transport detail.
+
+When `bot.chat("What is a list comprehension?")` is called, `Lingo` appends a `Message.user(...)` to its history, calls `llm.chat(history)`, appends the reply, and returns it. `loop` just drives that in a REPL. The script above — ten lines — is the complete application.
+
+In [Chapter 2](02-messages-and-context.md) we go deeper into `Message` and `Context`: attaching images and audio, forking the conversation for speculative reasoning, and managing the message window when history grows too long.
