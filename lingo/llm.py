@@ -318,6 +318,7 @@ class LLM:
         on_toolcall_delta: Callable[[str, str], Any] | None = None,
         on_toolcall_end: Callable[[str, dict], Any] | None = None,
         reasoning: dict[str, Any] | None = None,
+        create_attempts: int = 2,
         **extra_kwargs,
     ):
         self._on_token = on_token
@@ -328,6 +329,7 @@ class LLM:
         self._on_toolcall_delta = on_toolcall_delta
         self._on_toolcall_end = on_toolcall_end
         self._reasoning = reasoning
+        self.create_attempts = max(1, create_attempts)
 
         if model is None:
             model = os.getenv("MODEL")
@@ -508,15 +510,36 @@ class LLM:
         Forces the LLM to respond with a JSON object matching the Pydantic model,
         using the non-streaming `parse` endpoint. Reasoning kwargs are not forwarded
         because `parse()` rejects unknown fields.
+
+        A generation that hits the token ceiling is retried, up to
+        ``create_attempts`` in total. Under grammar-constrained decoding a model
+        occasionally fails to close the object and runs to the cap; the failure is
+        transient, and measured at roughly one call in twelve against
+        ``qwen/qwen3-32b`` on OpenRouter. Nothing else is retried: a schema the
+        provider rejects, or a response it cannot parse, will fail the same way
+        every time and retrying only hides it.
         """
         api_messages = [msg.model_dump() for msg in messages]
 
-        response = await self.client.chat.completions.parse(
-            model=self.model,  # type: ignore
-            messages=api_messages,  # type: ignore
-            response_format=model,
-            **(self.extra_kwargs | kwargs),
-        )
+        last_error: openai.LengthFinishReasonError | None = None
+        for _ in range(self.create_attempts):
+            try:
+                response = await self.client.chat.completions.parse(
+                    model=self.model,  # type: ignore
+                    messages=api_messages,  # type: ignore
+                    response_format=model,
+                    **(self.extra_kwargs | kwargs),
+                )
+            except openai.LengthFinishReasonError as exc:
+                last_error = exc
+                continue
+            break
+        else:
+            raise ValueError(
+                f"The model hit the token ceiling on all {self.create_attempts} attempts "
+                f"without closing the object."
+            ) from last_error
+
         result = response.choices[0].message.parsed
         if result is None:
             raise ValueError("Failed to parse the response from the model.")

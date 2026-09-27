@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `LLM.create` retries a generation that hits the token ceiling, up to
+  `create_attempts` in total (default 2). Under grammar-constrained
+  decoding a model occasionally fails to close the JSON object and runs
+  to the cap, which the OpenAI SDK raises as `LengthFinishReasonError`.
+  The failure is transient: measured at roughly one call in twelve
+  against `qwen/qwen3-32b` on OpenRouter with a discriminated union of
+  enum-bound branches, and a re-roll succeeded every time. Exhausting
+  the budget raises a `ValueError` that keeps the original error as its
+  cause.
+
+  Nothing else is retried. A schema the provider rejects, or a response
+  it cannot parse, fails the same way every time, and retrying it only
+  hides the cause while spending tokens.
+
 ## [2.0.2] - 2026-05-21
 
 ### Fixed
