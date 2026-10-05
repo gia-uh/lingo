@@ -106,6 +106,7 @@ Navigate the chapters in order, or jump directly to what you need.
 | [7. State](07-state.md) | Conversation state with atomic semantics |
 | [8. Patterns](08-patterns.md) | End-to-end examples |
 | [9. Native Tool Calling](09-native-tools.md) | Direct LLM tool-calling API |
+| [10. Lingo Playground](10-playground.md) | Local visual chat and event inspector |
 
 ## Source and license
 

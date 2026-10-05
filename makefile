@@ -20,7 +20,7 @@ docs-serve:
 docs-build:
 	@mkdocs build
 
-BOOK_FILES = book/01-hello-lingo.md book/02-messages-and-context.md book/03-the-engine.md book/04-flows.md book/05-tools.md book/06-skills-and-routing.md book/07-state.md book/08-patterns.md
+BOOK_FILES = book/01-hello-lingo.md book/02-messages-and-context.md book/03-the-engine.md book/04-flows.md book/05-tools.md book/06-skills-and-routing.md book/07-state.md book/08-patterns.md book/09-native-tools.md book/10-playground.md
 
 book-compile:
 	@echo "Compiling book..."
