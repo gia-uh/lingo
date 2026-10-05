@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>Lingo Playground</title>
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand" aria-label="Lingo Playground">
+          <span class="brand-mark" aria-hidden="true">L</span>
+          <div>
+            <p class="eyebrow">Lingo</p>
+            <h1>Playground</h1>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <div class="connection" role="status" aria-live="polite">
+            <span id="status-dot" class="status-dot"></span>
+            <span id="connection-status">Connecting</span>
+          </div>
+          <button id="theme-button" class="icon-button" type="button" aria-label="Switch color theme">
+            <span aria-hidden="true">◐</span>
+          </button>
+          <button id="reset-button" class="secondary-button" type="button" disabled>Reset</button>
+        </div>
+      </header>
+
+      <aside class="sidebar" aria-label="Application information">
+        <section class="app-card">
+          <p class="eyebrow">Running application</p>
+          <h2 id="app-name">Loading…</h2>
+          <p id="app-description" class="muted">Waiting for the local server.</p>
+          <span id="session-mode" class="mode-badge">—</span>
+        </section>
+
+        <section class="inspector-card">
+          <h2>Inspector</h2>
+          <p>Expand message details to inspect reasoning, tool calls, stop reasons, and token usage.</p>
+        </section>
+
+        <section id="singleton-notice" class="notice-card" hidden>
+          <h2>Single-session target</h2>
+          <p>This app was loaded as a singleton. Use a factory to isolate multiple browser tabs.</p>
+        </section>
+      </aside>
+
+      <main class="workspace">
+        <section id="conversation" class="conversation" aria-label="Conversation" aria-live="polite">
+          <div id="empty-state" class="empty-state">
+            <div class="empty-mark" aria-hidden="true">✦</div>
+            <h2>Start a conversation</h2>
+            <p>Messages stay in this local Lingo session. Model credentials never enter the browser.</p>
+          </div>
+        </section>
+
+        <div id="error-banner" class="error-banner" role="alert" hidden>
+          <span id="error-message"></span>
+          <button id="reconnect-button" type="button" hidden>Reconnect</button>
+        </div>
+
+        <form id="composer" class="composer">
+          <label class="sr-only" for="message-input">Message</label>
+          <textarea
+            id="message-input"
+            rows="1"
+            maxlength="20000"
+            placeholder="Message this Lingo app…"
+            disabled
+          ></textarea>
+          <button id="send-button" class="send-button" type="submit" disabled>
+            <span>Send</span>
+            <span aria-hidden="true">↑</span>
+          </button>
+          <p class="composer-hint">Enter to send · Shift+Enter for a new line</p>
+        </form>
+      </main>
+    </div>
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>
