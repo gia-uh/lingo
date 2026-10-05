@@ -102,6 +102,22 @@ The [`examples/`](examples) directory has 10 runnable end-to-end demos:
 
 Every example is run end-to-end against `MockLLM` in CI ([`tests/test_examples.py`](tests/test_examples.py)) — they don't bitrot.
 
+## 🖥️ Lingo Playground
+
+Install the optional visual interface and run any factory-backed Lingo app in a
+local browser:
+
+```bash
+pip install "lingo-ai[playground]"
+lingo-playground examples.playground_app:create_app --open
+```
+
+The Playground streams responses and exposes reasoning, tool calls, stop
+reasons, and token usage without sending API credentials to the browser. It uses
+plain HTML/CSS/JavaScript and adds no frontend build toolchain. See the
+[Playground user manual](book/10-playground.md) for factories, session semantics,
+security boundaries, and troubleshooting.
+
 ## 🧠 The Three Modeling Paradigms
 
 Lingo gives you the right abstraction for every type of logic.

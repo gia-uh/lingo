@@ -40,6 +40,7 @@ nav:
   - "7. State": 07-state.md
   - "8. Patterns": 08-patterns.md
   - "9. Native Tool Calling": 09-native-tools.md
+  - "10. Playground": 10-playground.md
 
 markdown_extensions:
   - admonition

@@ -20,6 +20,7 @@ Put done tasks into the Archive.
 
 ## Archive
 
+- [x] Build the lightweight local Lingo Playground and its user manual. (2026-10-02) (See plan: plans/lingo-playground.md)
 - [x] Update `install.sh` to be served via GitHub Pages and update all references to use the new URL. (2026-03-11)
 - [x] Create comprehensive User Guide (`docs/user-guide.md`) based on "The Architect in the Machine" philosophy. (2026-03-11) (See plan: plans/user-guide-integration.md)
 - [x] Refine `/plan` command to strictly enforce a non-execution mandate for generated plans. (2026-03-11)

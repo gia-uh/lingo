@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Optional `lingo-ai[playground]` extra with a lightweight Starlette/Uvicorn
+  browser interface. `lingo-playground module:create_app` provides isolated
+  factory-backed sessions, streamed responses, reasoning and tool-call
+  inspection, live reasoning elapsed time, reset support, responsive light/dark
+  UI, and a complete user manual. The core package remains free of web
+  dependencies.
 - `LLM.create` retries a generation that hits the token ceiling, up to
   `create_attempts` in total (default 2). Under grammar-constrained
   decoding a model occasionally fails to close the JSON object and runs
