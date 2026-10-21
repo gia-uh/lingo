@@ -4,6 +4,7 @@ from lingo.context import Context
 from lingo.engine import Engine
 from lingo.mock import MockLLM
 
+
 def make_multi_skill_bot() -> Lingo:
     bot = Lingo(name="Assistant", llm=MockLLM(["Done."] * 10))
 
@@ -20,9 +21,11 @@ def make_multi_skill_bot() -> Lingo:
 
     return bot
 
+
 def test_bot_registers_skills():
     bot = make_multi_skill_bot()
     assert len(bot.skills) == 2
+
 
 def make_bot_with_hooks() -> Lingo:
     bot = Lingo(name="HookBot", llm=MockLLM(["Hi!"] * 5))
@@ -42,12 +45,14 @@ def make_bot_with_hooks() -> Lingo:
 
     return bot
 
+
 @pytest.mark.asyncio
 async def test_hooks_run_around_skill():
     bot = make_bot_with_hooks()
     await bot.chat("Hello")
     contents = [str(m.content) for m in bot.messages]
     assert any("[turn logged]" in c for c in contents)
+
 
 def make_filtered_bot() -> Lingo:
     bot = Lingo(name="FilterBot", llm=MockLLM(["Answer."] * 5))
@@ -63,9 +68,11 @@ def make_filtered_bot() -> Lingo:
 
     return bot
 
+
 def test_filtered_bot_has_filter():
     bot = make_filtered_bot()
     assert "The user is asking in Spanish" in bot._filters
+
 
 def make_wizard_bot() -> Lingo:
     bot = Lingo(name="Wizard", llm=MockLLM(["What is your name?", "Nice to meet you!"]))
@@ -83,6 +90,7 @@ def make_wizard_bot() -> Lingo:
 
     return bot
 
+
 @pytest.mark.asyncio
 async def test_wizard_collects_name():
     bot = make_wizard_bot()
@@ -90,4 +98,3 @@ async def test_wizard_collects_name():
     assert reply1.role == "assistant"
     reply2 = await bot.chat("Alice")
     assert reply2.role == "assistant"
-

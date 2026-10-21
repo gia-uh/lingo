@@ -6,6 +6,7 @@ from lingo.context import Context
 from lingo.engine import Engine
 from lingo.mock import MockLLM
 
+
 @pytest.mark.asyncio
 async def test_reply_returns_assistant_message():
     engine = Engine(MockLLM(["Hello!"]))
@@ -13,6 +14,7 @@ async def test_reply_returns_assistant_message():
     msg = await engine.reply(c)
     assert msg.role == "assistant"
     assert "Hello" in str(msg.content)
+
 
 @pytest.mark.asyncio
 async def test_reply_with_temporary_instruction():
@@ -22,6 +24,7 @@ async def test_reply_with_temporary_instruction():
     msg = await engine.reply(c, "Answer in one word.")
     assert msg.role == "assistant"
     assert len(c.messages) == 1  # context unchanged
+
 
 @pytest.mark.asyncio
 async def test_decide_returns_bool():
@@ -33,6 +36,7 @@ async def test_decide_returns_bool():
     c = Context([Message.user("Is water wet?")])
     result = await engine.decide(c, "Answer True or False.")
     assert result is True
+
 
 @pytest.mark.asyncio
 async def test_choose_returns_one_of_options():
@@ -46,10 +50,13 @@ async def test_choose_returns_one_of_options():
     result = await engine.choose(c, options, "Pick the most natural color.")
     assert result == "green"
 
+
 class Sentiment(BaseModel):
     """Classify the sentiment of the last message."""
+
     label: str
     score: float
+
 
 @pytest.mark.asyncio
 async def test_create_returns_pydantic_model():
@@ -59,4 +66,3 @@ async def test_create_returns_pydantic_model():
     result = await engine.create(c, Sentiment)
     assert isinstance(result, Sentiment)
     assert result.label == "positive"
-

@@ -36,7 +36,11 @@ def _parsed(value: str) -> SimpleNamespace:
 
 def _length_error() -> openai.LengthFinishReasonError:
     completion = SimpleNamespace(
-        choices=[SimpleNamespace(finish_reason="length", message=SimpleNamespace(parsed=None))],
+        choices=[
+            SimpleNamespace(
+                finish_reason="length", message=SimpleNamespace(parsed=None)
+            )
+        ],
         usage=None,
     )
     return openai.LengthFinishReasonError(completion=completion)  # type: ignore[arg-type]
@@ -97,7 +101,9 @@ async def test_a_budget_below_one_still_makes_a_single_attempt():
 async def test_other_failures_are_not_retried():
     """A schema the provider rejects fails the same way every time, so retrying
     it only hides the cause and spends tokens."""
-    llm, parse = _llm([openai.BadRequestError("bad schema", response=MagicMock(), body=None)])
+    llm, parse = _llm(
+        [openai.BadRequestError("bad schema", response=MagicMock(), body=None)]
+    )
     with pytest.raises(openai.BadRequestError):
         await llm.create(Answer, MESSAGES)
     assert parse.await_count == 1
@@ -106,7 +112,9 @@ async def test_other_failures_are_not_retried():
 @pytest.mark.asyncio
 async def test_an_unparseable_response_is_not_retried():
     empty = SimpleNamespace(
-        choices=[SimpleNamespace(message=SimpleNamespace(parsed=None))], usage=None, model="fake"
+        choices=[SimpleNamespace(message=SimpleNamespace(parsed=None))],
+        usage=None,
+        model="fake",
     )
     llm, parse = _llm([empty])
     with pytest.raises(ValueError, match="Failed to parse"):
