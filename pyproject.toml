@@ -1,6 +1,6 @@
 [project]
 name = "lingo-ai"
-version = "2.2.0"
+version = "2.2.1"
 description = "A minimal, async-native, and unopinionated toolkit for modern LLM applications."
 readme = "README.md"
 authors = [
@@ -14,6 +14,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Application Frameworks",
 ]
 dependencies = [
+    "httpx>=0.28",
     "openai>=2.7.2",
     "purely>=1.0",
     "pydantic>=2.12.4",

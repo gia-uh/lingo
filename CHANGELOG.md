@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-10-21
+
+### Fixed
+
+- `httpx` is now a declared dependency. 2.2.0 imported it in
+  `lingo.decider` and relied on `openai` to bring it, but `openai` 3.x
+  depends on `httpx2` instead, so a fresh install of 2.2.0 failed on
+  `import lingo` with `ModuleNotFoundError: No module named 'httpx'`.
+
 ## [2.2.0] - 2026-10-21
 
 ### Added

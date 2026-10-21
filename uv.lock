@@ -366,9 +366,10 @@ wheels = [
 
 [[package]]
 name = "lingo-ai"
-version = "2.2.0"
+version = "2.2.1"
 source = { editable = "." }
 dependencies = [
+    { name = "httpx" },
     { name = "openai" },
     { name = "purely" },
     { name = "pydantic" },
@@ -388,6 +389,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "httpx", specifier = ">=0.28" },
     { name = "openai", specifier = ">=2.7.2" },
     { name = "purely", specifier = ">=1.0" },
     { name = "pydantic", specifier = ">=2.12.4" },
