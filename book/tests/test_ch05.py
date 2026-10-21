@@ -5,6 +5,7 @@ from lingo.context import Context
 from lingo.engine import Engine
 from lingo.mock import MockLLM
 
+
 @tool
 async def get_weather(city: str, unit: str = "celsius") -> str:
     """
@@ -16,17 +17,20 @@ async def get_weather(city: str, unit: str = "celsius") -> str:
     """
     return f"The weather in {city} is 22 {unit}."
 
+
 def test_tool_metadata():
     assert get_weather.name == "get_weather"
     assert "city" in get_weather.parameters()
     assert "unit" in get_weather.defaults()
     assert get_weather.defaults()["unit"] == "celsius"
 
+
 @pytest.mark.asyncio
 async def test_tool_runs():
     result = await get_weather.run(city="Havana", unit="celsius")
     assert "Havana" in result
     assert "22" in result
+
 
 @pytest.mark.asyncio
 async def test_engine_invoke_tool():
@@ -46,6 +50,7 @@ async def test_engine_invoke_tool():
     assert result.error is None
     assert "Havana" in str(result.result)
 
+
 def make_tool_bot() -> Lingo:
     bot = Lingo(name="WeatherBot", llm=MockLLM(["It's sunny!"]))
 
@@ -56,15 +61,18 @@ def make_tool_bot() -> Lingo:
 
     return bot
 
+
 def test_tool_bot_has_tool():
     bot = make_tool_bot()
     assert len(bot.tools) == 1
     assert bot.tools[0].name == "check_weather"
 
+
 @tool
 async def search_web(query: str) -> str:
     """Search the web."""
     return f"Results for: {query}"
+
 
 def test_scope_adds_tools():
     base_engine = Engine(MockLLM())
@@ -72,4 +80,3 @@ def test_scope_adds_tools():
     assert len(scoped._tools) == 1
     assert len(base_engine._tools) == 0
     assert scoped._llm is base_engine._llm  # same LLM instance
-
