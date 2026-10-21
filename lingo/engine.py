@@ -1,8 +1,18 @@
 import asyncio
 import json
+import logging
 from pydantic import BaseModel, create_model
 from typing import Any, Literal, Self
 
+from .decider import (
+    Answer,
+    Decision,
+    DeciderError,
+    SystemOne,
+    choice,
+    noul,
+    render_state,
+)
 from .llm import LLM, Message
 from .tools import Tool, ToolResult
 from .context import Context
@@ -17,6 +27,13 @@ from .prompts import (
 
 INPUT_SIGNAL = object()
 
+log = logging.getLogger(__name__)
+
+
+def _instruction_text(instructions: tuple, default: str) -> str:
+    parts = [str(i.content) if isinstance(i, Message) else str(i) for i in instructions]
+    return "\n\n".join(p for p in parts if p) or default
+
 
 class Engine:
     """
@@ -24,9 +41,15 @@ class Engine:
     operations on a given Context.
     """
 
-    def __init__(self, llm: LLM, tools: list[Tool] | None = None):
+    def __init__(
+        self,
+        llm: LLM,
+        tools: list[Tool] | None = None,
+        decider: SystemOne | None = None,
+    ):
         self._llm = llm
         self._tools = list(tools or [])
+        self._decider = decider
 
         # Communication channels for stateful sessions
         self._input_queue = asyncio.Queue[str]()
@@ -41,7 +64,7 @@ class Engine:
         # Combine current tools with new tools
         # (You might want to add logic here to handle duplicate names if needed)
         new_tool_set = self._tools + tools
-        return self.__class__(self._llm, new_tool_set)
+        return self.__class__(self._llm, new_tool_set, self._decider)
 
     def _expand_content(self, context: Context, *instructions) -> list[Message]:
         """Helper to combine context messages with temporary instructions."""
@@ -114,14 +137,57 @@ class Engine:
         """Creates a dynamic Pydantic model for Chain-of-Thought reasoning."""
         return create_model(name, reasoning=(str, ...), result=(result_cls, ...))
 
+    async def ask_many(
+        self, context: Context, questions: dict[str, dict[str, Any]]
+    ) -> Decision:
+        """
+        Asks the decider several typed questions about the conversation in one
+        request and returns every answer with its probabilities. Applies no
+        threshold and never falls back: the caller reads the confidences.
+        """
+        if self._decider is None:
+            raise ValueError("Engine.ask_many needs a decider.")
+        state = render_state(list(context.messages), self._decider.history)
+        return await self._decider.decide(state, questions)
+
+    async def _confident(
+        self, context: Context, question: dict[str, Any]
+    ) -> Answer | None:
+        """The decider's answer when it is at or above its threshold, else None."""
+        if self._decider is None:
+            return None
+        try:
+            answer = (await self.ask_many(context, {"q": question}))["q"]
+        except DeciderError as e:
+            log.warning("decider failed, falling back to the LLM: %s", e)
+            return None
+        if answer.confidence < self._decider.threshold:
+            log.debug(
+                "decider unsure (%.2f), falling back to the LLM", answer.confidence
+            )
+            return None
+        return answer
+
     async def choose[T](
         self, context: Context, options: list[T], *instructions: str | Message
     ) -> T:
         """
-        Calls the LLM to choose one item from a list of options.
+        Chooses one item from a list of options: with the decider when it is
+        confident, otherwise with the LLM.
         """
         # Create a mapping of string representations to original objects
         mapping = {str(option): option for option in options}
+
+        criteria = {
+            key: getattr(option, "description", None) or key
+            for key, option in mapping.items()
+        }
+        question = choice(
+            _instruction_text(instructions, "Select the most appropriate option."),
+            criteria,
+        )
+        if (answer := await self._confident(context, question)) is not None:
+            return mapping[answer.choice]  # type: ignore
         enum_type = Literal[*mapping.keys()]
         model_cls = self._create_cot_model("Choose", enum_type)
 
@@ -137,8 +203,12 @@ class Engine:
 
     async def decide(self, context: Context, *instructions: str | Message) -> bool:
         """
-        Calls the LLM to make a True/False decision.
+        Makes a True/False decision: with the decider when it is confident,
+        otherwise with the LLM.
         """
+        question = noul(_instruction_text(instructions, "Is this true?"))
+        if (answer := await self._confident(context, question)) is not None:
+            return answer.noul >= 0.5  # type: ignore
         model_cls = self._create_cot_model("Decide", bool)
         prompt = DEFAULT_DECIDE_PROMPT.format(format=model_cls.model_json_schema())
 
@@ -161,6 +231,11 @@ class Engine:
             return _tools[0]
 
         tool_map = {tool.name: tool for tool in _tools}
+
+        criteria = {t.name: t.description or t.name for t in _tools}
+        question = choice("Pick the tool to invoke next.", criteria)
+        if (answer := await self._confident(context, question)) is not None:
+            return tool_map[answer.choice]  # type: ignore
 
         # enum_type = Enum("ToolChoices", {t: t for t in tool_map.keys()})
         enum_type = Literal[*tool_map.keys()]

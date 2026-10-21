@@ -1,5 +1,6 @@
 from .context import Context
 from .core import Lingo
+from .decider import SystemOne
 from .flow import Flow, flow
 from .llm import LLM, Message, ToolCall
 from .embed import Embedder
@@ -22,6 +23,7 @@ __all__ = [
     "LLM",
     "Message",
     "State",
+    "SystemOne",
     "tool",
     "ToolCall",
 ]

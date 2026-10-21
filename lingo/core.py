@@ -10,6 +10,7 @@ from .tools import Tool, tool
 from .context import Context
 from .prompts import DEFAULT_SYSTEM_PROMPT
 from .engine import Engine
+from .decider import SystemOne
 from .state import State
 
 
@@ -34,6 +35,7 @@ class Lingo:
         conversation: Conversation | None = None,
         router_prompt: str | None = None,
         state: State | None = None,
+        decider: SystemOne | None = None,
     ) -> None:
         self.name = name
         self.description = description
@@ -49,11 +51,13 @@ class Lingo:
         self._verbose = verbose
         self._router_prompt = router_prompt
         self.state = state
+        self.decider = decider
 
         self.registry = Registry()
         self.registry.register(self)
         self.registry.register(self.llm)
         self.registry.register(self.state)
+        self.registry.register(self.decider)
 
         self._before_hooks: list[Callable] = []
         self._after_hooks: list[Callable] = []
@@ -141,7 +145,7 @@ class Lingo:
         else:
             # START: Create new session
             context = Context(list(self.messages))
-            engine = Engine(self.llm, self.tools)
+            engine = Engine(self.llm, self.tools, self.decider)
             flow = self._build_flow()
 
             # The flow's first node is prepend(system_prompt), which inserts one message
