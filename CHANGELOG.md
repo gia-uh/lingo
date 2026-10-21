@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `SystemOne`, a client for System One decision models over HTTP, and
+  `Lingo(decider=...)`. `Engine.choose`, `Engine.decide` and `Engine.equip`
+  ask the decider first and fall back to the LLM when its confidence is
+  below the threshold (default 0.8) or the request fails. Skill routing
+  and the `Route`, `Choose`, `Decide` and `Act` nodes use it with no
+  change. `Engine.ask_many` sends several typed questions (`choice`,
+  `noul`, `score`) in one request. The client speaks the wire contract
+  only; it defaults to OpenRouter's decisions endpoint and accepts any
+  URL that serves the same contract. New book chapter 10.
+
 - `LLM.create` retries a generation that hits the token ceiling, up to
   `create_attempts` in total (default 2). Under grammar-constrained
   decoding a model occasionally fails to close the JSON object and runs
