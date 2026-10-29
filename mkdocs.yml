@@ -1,4 +1,5 @@
 site_name: lingo
+site_url: https://lingo.uhgia.org/docs/
 site_description: A minimal Python library for building LLM-powered applications.
 site_author: Alejandro Piad
 repo_url: https://github.com/gia-uh/lingo

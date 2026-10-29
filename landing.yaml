@@ -1,0 +1,42 @@
+name: Lingo
+accent: "#2F7D4A"
+tagline:
+  es: Aplicaciones con modelos de lenguaje, en Python
+  en: Language model applications, in Python
+intro:
+  es: Una biblioteca asíncrona y tipada para construir aplicaciones con modelos de lenguaje. Las conversaciones se escriben como flujos de Python que se pausan para preguntar y retoman donde se quedaron.
+  en: An async, typed library for building language model applications. Conversations are written as Python flows that pause to ask and resume where they left off.
+install: pip install lingo-ai
+links:
+  docs: /docs/
+  code: https://github.com/gia-uh/lingo
+  pypi: https://pypi.org/project/lingo-ai/
+features:
+  - es: Skills, flujos y máquinas de estados que se componen como código normal.
+    en: Skills, flows and state machines that compose like ordinary code.
+  - es: Llamadas a herramientas nativas y decisiones estructuradas, con tipos.
+    en: Native tool calls and structured decisions, with types.
+  - es: Un libro donde cada ejemplo se ejecuta y se comprueba en CI.
+    en: A book where every example runs and is checked in CI.
+example:
+  lang: python
+  code: |
+    from lingo import Lingo
+
+    app = Lingo("Wizard", description="A helpful setup wizard")
+
+    @app.skill
+    async def onboarding(ctx, eng):
+        name = await eng.ask(ctx, "What is your name?")
+        email = await eng.ask(ctx, f"Hi {name}, what is your email?")
+        if await eng.decide(ctx, f"Is {email} a valid corporate email address?"):
+            await eng.reply(ctx, "Registration complete.")
+        else:
+            await eng.reply(ctx, "Personal emails are not allowed.")
+
+    if __name__ == "__main__":
+        from lingo.cli import loop
+        loop(app)
+status:
+  es: v2.2.1 · PyPI · licencia MIT
+  en: v2.2.1 · PyPI · MIT licence
