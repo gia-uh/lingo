@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="Lingo">
+<title>Lingo</title>
+<defs><clipPath id="lingo-clip"><circle cx="44" cy="44" r="33"/></clipPath></defs>
+<path d="M22 69 L10 92 L38 76 Z" fill="#2F7D4A"/>
+<circle cx="44" cy="44" r="33" fill="#2F7D4A"/>
+<g clip-path="url(#lingo-clip)"><ellipse cx="60" cy="18" rx="22" ry="12" fill="#F0ECE3"/><ellipse cx="62" cy="66" rx="20" ry="11" fill="#C8323A"/></g>
+<path d="M72 30 C90 28 98 46 88 62 C86 52 80 47 72 49 Z" fill="#D4A12A"/>
+<circle cx="58" cy="38" r="6.5" fill="#F0ECE3"/><circle cx="59" cy="38" r="3.6" fill="#1b1714"/>
+</svg>
